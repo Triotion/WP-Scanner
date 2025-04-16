@@ -1,0 +1,280 @@
+{
+    "contact-form-7": [
+        {
+            "title": "Contact Form 7 Unrestricted File Upload",
+            "description": "Contact Form 7 before 5.3.2 allows unrestricted file upload and remote code execution.",
+            "severity": "Critical",
+            "cve": "CVE-2020-35489",
+            "affected_version": "<=5.3.1",
+            "fixed_in": "5.3.2",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "cf7_file_upload"
+        },
+        {
+            "title": "Contact Form 7 Cross-Site Scripting",
+            "description": "Cross-site scripting vulnerability in Contact Form 7 before 5.1.9.",
+            "severity": "Medium",
+            "cve": "CVE-2020-12800",
+            "affected_version": "<=5.1.8",
+            "fixed_in": "5.1.9",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "wp-super-cache": [
+        {
+            "title": "WP Super Cache Unauthenticated RCE",
+            "description": "WP Super Cache before 1.7.2 allows unauthenticated remote code execution.",
+            "severity": "Critical",
+            "cve": "CVE-2019-20041",
+            "affected_version": "<=1.7.1",
+            "fixed_in": "1.7.2",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "wp_super_cache_rce"
+        }
+    ],
+    "woocommerce": [
+        {
+            "title": "WooCommerce Arbitrary File Download",
+            "description": "WooCommerce before 5.5.1 is vulnerable to arbitrary file download.",
+            "severity": "High",
+            "cve": "CVE-2021-32620",
+            "affected_version": "<=5.5.0",
+            "fixed_in": "5.5.1",
+            "exploitability": "Medium",
+            "exploit_available": true,
+            "exploit_method": "woocommerce_file_download"
+        },
+        {
+            "title": "WooCommerce SQL Injection",
+            "description": "SQL injection vulnerability in WooCommerce before 4.6.2.",
+            "severity": "Critical",
+            "cve": "CVE-2021-32052",
+            "affected_version": "<=4.6.1",
+            "fixed_in": "4.6.2",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "woocommerce_sqli"
+        },
+        {
+            "title": "WooCommerce Product Import Export RCE",
+            "description": "WooCommerce Product Import Export before 3.3.5 is vulnerable to formula injection in CSV files leading to remote code execution.",
+            "severity": "Critical",
+            "cve": "CVE-2021-4095",
+            "affected_version": "<=3.3.4",
+            "fixed_in": "3.3.5",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "woocommerce_product_rce"
+        },
+        {
+            "title": "WooCommerce Checkout Field Editor Vulnerability",
+            "description": "WooCommerce Checkout Field Editor before 2.0.3 allows unauthorized users to access and modify checkout fields.",
+            "severity": "High",
+            "cve": "CVE-2022-0409",
+            "affected_version": "<=2.0.2",
+            "fixed_in": "2.0.3",
+            "exploitability": "Medium",
+            "exploit_available": true,
+            "exploit_method": "woocommerce_checkout_vulnerability"
+        }
+    ],
+    "woocommerce-aelia-currencyswitcher": [
+        {
+            "title": "WooCommerce Currency Switcher SQL Injection",
+            "description": "SQL injection vulnerability in WooCommerce Currency Switcher plugin via the flag_mode parameter",
+            "severity": "Critical",
+            "cve": "CVE-2023-23992",
+            "affected_version": "<=1.16.2",
+            "fixed_in": "1.16.3",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "woocommerce_currency_switcher"
+        }
+    ],
+    "woocommerce-currency-switcher": [
+        {
+            "title": "WooCommerce Currency Switcher SQL Injection",
+            "description": "SQL injection vulnerability in WooCommerce Currency Switcher plugin via the flag_mode parameter",
+            "severity": "Critical",
+            "cve": "CVE-2023-23992",
+            "affected_version": "<=1.3.4",
+            "fixed_in": "1.3.5",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "woocommerce_currency_switcher"
+        }
+    ],
+    "yuzo-related-post": [
+        {
+            "title": "Yuzo Related Posts Stored XSS",
+            "description": "Stored XSS vulnerability in Yuzo Related Posts plugin allowing attackers to inject malicious JavaScript",
+            "severity": "High",
+            "cve": "CVE-2019-9911",
+            "affected_version": "<=5.5.8",
+            "fixed_in": "Plugin abandoned, removal recommended",
+            "exploitability": "Medium",
+            "exploit_available": true,
+            "exploit_method": "yuzo_related_posts"
+        }
+    ],
+    "yuzo-related-posts": [
+        {
+            "title": "Yuzo Related Posts Stored XSS",
+            "description": "Stored XSS vulnerability in Yuzo Related Posts plugin allowing attackers to inject malicious JavaScript",
+            "severity": "High",
+            "cve": "CVE-2019-9911",
+            "affected_version": "<=5.5.8",
+            "fixed_in": "Plugin abandoned, removal recommended",
+            "exploitability": "Medium",
+            "exploit_available": true,
+            "exploit_method": "yuzo_related_posts"
+        }
+    ],
+    "gravityforms": [
+        {
+            "title": "Gravity Forms RCE Vulnerability",
+            "description": "Remote code execution vulnerability in Gravity Forms before 2.4.23.",
+            "severity": "Critical",
+            "cve": "CVE-2021-20837",
+            "affected_version": "<=2.4.22",
+            "fixed_in": "2.4.23",
+            "exploitability": "High",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "yoast-seo": [
+        {
+            "title": "Yoast SEO XSS Vulnerability",
+            "description": "Cross-site scripting vulnerability in Yoast SEO before 14.9.",
+            "severity": "Medium",
+            "cve": "CVE-2021-25118",
+            "affected_version": "<=14.8",
+            "fixed_in": "14.9",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "gutenberg": [
+        {
+            "title": "Gutenberg Stored XSS",
+            "description": "Stored cross-site scripting vulnerability in Gutenberg before 9.3.0.",
+            "severity": "Medium",
+            "cve": "CVE-2021-22146",
+            "affected_version": "<=9.2.0",
+            "fixed_in": "9.3.0",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "elementor": [
+        {
+            "title": "Elementor Page Builder Authenticated RCE",
+            "description": "Remote code execution vulnerability for authenticated users in Elementor before 3.1.4.",
+            "severity": "High",
+            "cve": "CVE-2021-24169",
+            "affected_version": "<=3.1.3",
+            "fixed_in": "3.1.4",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "wp-fastest-cache": [
+        {
+            "title": "WP Fastest Cache RCE Vulnerability",
+            "description": "Remote code execution vulnerability in WP Fastest Cache before 0.9.5.",
+            "severity": "Critical",
+            "cve": "CVE-2021-24869",
+            "affected_version": "<=0.9.4",
+            "fixed_in": "0.9.5",
+            "exploitability": "High",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "wpforms-lite": [
+        {
+            "title": "WPForms Authenticated File Upload Vulnerability",
+            "description": "Authenticated arbitrary file upload vulnerability in WPForms before 1.6.7.2.",
+            "severity": "High",
+            "cve": "CVE-2021-34621",
+            "affected_version": "<=1.6.7.1",
+            "fixed_in": "1.6.7.2",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "wp-file-manager": [
+        {
+            "title": "WP File Manager Remote Code Execution",
+            "description": "Unauthenticated remote code execution in WP File Manager before 6.9.",
+            "severity": "Critical",
+            "cve": "CVE-2020-25213",
+            "affected_version": "<=6.8",
+            "fixed_in": "6.9",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "wp_file_manager_rce"
+        }
+    ],
+    "js_composer": [
+        {
+            "title": "WP Bakery Page Builder Remote Code Execution",
+            "description": "Remote code execution vulnerability in WP Bakery (js_composer) plugin before 6.5.0.",
+            "severity": "Critical",
+            "cve": "CVE-2021-34397",
+            "affected_version": "<=6.4.1",
+            "fixed_in": "6.5.0",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "wp_bakery_rce"
+        }
+    ],
+    "wpdatatables": [
+        {
+            "title": "wpDataTables SQL Injection Vulnerability",
+            "description": "SQL injection vulnerability in wpDataTables plugin before 3.7.1.",
+            "severity": "Critical",
+            "cve": "CVE-2023-26540",
+            "affected_version": "<=3.7.0",
+            "fixed_in": "3.7.1",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "wpdatatables_sqli"
+        }
+    ],
+    "nextgen-gallery": [
+        {
+            "title": "NextGEN Gallery SQL Injection",
+            "description": "SQL injection vulnerability in NextGEN Gallery plugin via the 'galleryid' parameter",
+            "severity": "Critical",
+            "cve": "CVE-2021-34107",
+            "affected_version": "<=3.8.0",
+            "fixed_in": "3.8.1",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "nextgen_gallery_sqli"
+        }
+    ],
+    "nextgen-gallery-pro": [
+        {
+            "title": "NextGEN Gallery Pro SQL Injection",
+            "description": "SQL injection vulnerability in NextGEN Gallery Pro plugin via the 'galleryid' parameter",
+            "severity": "Critical",
+            "cve": "CVE-2021-34107",
+            "affected_version": "<=3.8.0",
+            "fixed_in": "3.8.1",
+            "exploitability": "High",
+            "exploit_available": true,
+            "exploit_method": "nextgen_gallery_sqli"
+        }
+    ]
+} 
