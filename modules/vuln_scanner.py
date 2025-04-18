@@ -7,6 +7,7 @@ import re
 import sys
 import time
 from urllib.parse import urljoin
+from packaging import version
 
 import requests
 from bs4 import BeautifulSoup
@@ -62,7 +63,9 @@ class VulnerabilityScanner:
         """Check WordPress core vulnerabilities"""
         vulns = []
         
+        # Skip if version is unknown
         if not wp_version or wp_version == 'Unknown':
+            print_warning("WordPress version could not be determined, skipping core vulnerability check")
             return []
         
         # Parse version
@@ -609,7 +612,15 @@ class VulnerabilityScanner:
         progress = ProgressBar(len(themes), prefix='Theme Scan:', suffix='Complete')
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.threads) as executor:
-            future_to_theme = {executor.submit(self._check_theme_vuln, theme): theme for theme in themes}
+            # Process themes - could be a list of strings or a list of dicts
+            theme_list = []
+            for theme in themes:
+                if isinstance(theme, dict) and "name" in theme:
+                    theme_list.append(theme["name"])
+                else:
+                    theme_list.append(theme)
+                    
+            future_to_theme = {executor.submit(self._check_theme_vuln, theme): theme for theme in theme_list}
             
             for future in concurrent.futures.as_completed(future_to_theme):
                 theme = future_to_theme[future]
@@ -721,8 +732,6 @@ class VulnerabilityScanner:
             if not affected_versions:
                 # If no affected versions are specified, assume it's affected
                 return True
-
-            from packaging import version
             
             # Parse the detected version
             try:
@@ -731,6 +740,10 @@ class VulnerabilityScanner:
                 # If we can't parse the version, be cautious and return True
                 print_verbose(f"Could not parse version {detected_version}, assuming vulnerable")
                 return True
+            
+            # Convert affected_versions to a list if it's a string
+            if isinstance(affected_versions, str):
+                affected_versions = [affected_versions]
             
             for ver_range in affected_versions:
                 # Handle different version range formats
@@ -983,23 +996,52 @@ class VulnerabilityScanner:
         }
         
         print_info("[*] Checking for WordPress core vulnerabilities...")
-        if "wp_version" in wp_info and wp_info["wp_version"]:
+        if "wp_version" in wp_info and wp_info["wp_version"] and wp_info["wp_version"] != "Unknown":
             results["core"] = self.check_wp_vulns(wp_info["wp_version"])
         else:
             print_warning("[!] WordPress version not found, skipping core vulnerability check")
         
         print_info("[*] Checking for vulnerable plugins...")
         if "plugins" in wp_info and wp_info["plugins"]:
-            plugins_bar = ProgressBar(len(wp_info["plugins"]), "[*] Checking plugins")
+            # Convert plugins list to dictionary if needed
+            plugins_list = wp_info["plugins"]
             
-            for plugin in wp_info["plugins"]:
-                plugins_bar.step()
+            # Check if plugins is a list (from fingerprinter) or a dictionary
+            if isinstance(plugins_list, list):
+                # Convert list to dictionary for consistent processing
+                plugins_dict = {}
+                for plugin in plugins_list:
+                    # Clean up plugin name and extract version if available
+                    if " (v" in plugin:
+                        plugin_name, version = plugin.split(" (v", 1)
+                        version = version.rstrip(")")
+                        plugins_dict[plugin_name] = {"name": plugin_name, "version": version}
+                    else:
+                        plugins_dict[plugin] = {"name": plugin, "version": None}
+                
+                wp_info["plugins"] = plugins_dict
+            
+            # Create a progress bar for the number of plugins
+            plugins_count = len(wp_info["plugins"])
+            print_info(f"Checking {plugins_count} plugins for vulnerabilities...")
+            # Use a custom progress bar approach to avoid duplication
+            sys.stdout.write(f'[*] Checking plugins |{"-" * 50}| 0.0% Complete\r')
+            sys.stdout.flush()
+            
+            # Process each plugin
+            for i, plugin in enumerate(wp_info["plugins"], 1):
+                # Update progress manually
+                percent = ("{0:.1f}").format(100 * (i / float(plugins_count)))
+                filled_length = int(50 * i // plugins_count)
+                bar = '█' * filled_length + '-' * (50 - filled_length)
+                sys.stdout.write(f'[*] Checking plugins |{bar}| {percent}% Complete\r')
+                sys.stdout.flush()
                 
                 # Use enhanced version detection for more accuracy
                 detected_version = None
                 
                 # First check if we already have a version from the plugin detection
-                if wp_info["plugins"][plugin].get("version"):
+                if isinstance(wp_info["plugins"], dict) and isinstance(wp_info["plugins"][plugin], dict) and wp_info["plugins"][plugin].get("version"):
                     detected_version = wp_info["plugins"][plugin]["version"]
                     print_verbose(f"Using previously detected version for {plugin}: {detected_version}")
                 
@@ -1008,14 +1050,14 @@ class VulnerabilityScanner:
                     detected_version = self._get_plugin_version(plugin)
                     
                     # If we found a version, update it in the wp_info structure
-                    if detected_version:
+                    if detected_version and isinstance(wp_info["plugins"], dict) and isinstance(wp_info["plugins"][plugin], dict):
                         wp_info["plugins"][plugin]["version"] = detected_version
                 
                 if detected_version:
                     print_verbose(f"Checking {plugin} version {detected_version} for vulnerabilities")
-                    if plugin in self.plugin_vulns:
+                    if plugin in self.plugin_vulns_db:
                         vulns = []
-                        for vuln in self.plugin_vulns[plugin]:
+                        for vuln in self.plugin_vulns_db[plugin]:
                             if self._is_version_affected(detected_version, vuln.get("affected_versions", [])):
                                 vulns.append(vuln)
                         
@@ -1027,13 +1069,39 @@ class VulnerabilityScanner:
                 else:
                     print_verbose(f"No version detected for plugin {plugin}")
             
-            plugins_bar.finish()
+            # Ensure we finish the progress bar
+            if plugins_count > 0:
+                sys.stdout.write('\n')
         else:
             print_warning("[!] No plugins found, skipping plugin vulnerability check")
         
         print_info("[*] Checking for vulnerable themes...")
         if "themes" in wp_info and wp_info["themes"]:
-            results["themes"] = self.check_theme_vulns(wp_info["themes"])
+            # Process themes list
+            themes_list = []
+            
+            # Check if themes are in the format "name (vX.X.X)"
+            for theme in wp_info["themes"]:
+                if " (v" in theme:
+                    theme_name, version = theme.split(" (v", 1)
+                    version = version.rstrip(")")
+                    themes_list.append({"name": theme_name, "version": version})
+                else:
+                    themes_list.append({"name": theme, "version": None})
+            
+            # Call theme vulnerability checker with processed list
+            theme_names = [t["name"] for t in themes_list]
+            results["themes"] = self.check_theme_vulns(theme_names)
+            
+            # Add version information to any found vulnerabilities
+            if results["themes"]:
+                for vuln in results["themes"]:
+                    if "theme" in vuln:
+                        theme_name = vuln["theme"]
+                        for theme_info in themes_list:
+                            if theme_info["name"] == theme_name and theme_info["version"]:
+                                vuln["detected_version"] = theme_info["version"]
+                                break
         else:
             print_warning("[!] No themes found, skipping theme vulnerability check")
         

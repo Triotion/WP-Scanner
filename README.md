@@ -1,132 +1,146 @@
 # WP-Scanner
 
-An advanced WordPress vulnerability scanner and exploitation tool written in Python.
+![WP-Scanner Banner](screenshots/banner.png)
+
+**Advanced WordPress Vulnerability Scanner and Exploitation Tool**
+
+---
 
 ## Features
 
-- WordPress installation detection and fingerprinting
-- WordPress version, theme, and plugin detection
-- User enumeration
+- Comprehensive WordPress fingerprinting (version, themes, plugins, users)
 - Vulnerability scanning for WordPress core, themes, and plugins
-- Advanced exploit capabilities including:
-  - XML-RPC brute force attacks
-  - Authentication bypass
-  - Various plugin-specific RCE exploits
-  - SQL injection exploitation
-  - Password reset token leak exploitation
-- Multi-threaded scanning for faster performance
-- Detailed reporting of findings
+- Active exploitation of detected vulnerabilities
+- Detailed reporting of vulnerabilities and exploitation results
+- Mass scanning capability for multiple targets
+- Automatic updates for both tool and vulnerability databases
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.7+
-- pip (Python package manager)
+- Git (for easy updates)
 
 ### Setup
 
 1. Clone the repository:
-```
+```bash
 git clone https://github.com/Triotion/wp-scanner.git
 cd wp-scanner
 ```
 
 2. Install dependencies:
-```
+```bash
 pip install -r requirements.txt
+```
+
+3. Run the tool:
+```bash
+python wp_scanner.py -h
 ```
 
 ## Usage
 
-Basic usage:
-```
-python wp_scanner.py -t example.com
-```
-
-Advanced usage:
-```
-python wp_scanner.py -t example.com --threads 10 --timeout 30 --proxy http://127.0.0.1:8080 --exploit -v
-```
-
-### Command-line Arguments
-
-- `-t, --target`: Target WordPress site URL (required)
-- `-o, --output`: Output directory for scan results
-- `--threads`: Number of threads for scanning (default: 5)
-- `--timeout`: Request timeout in seconds (default: 30)
-- `--user-agent`: Custom User-Agent string
-- `--proxy`: Proxy URL (e.g., http://127.0.0.1:8080)
-- `--exploit`: Attempt to exploit found vulnerabilities
-- `-v, --verbose`: Enable verbose output
-
-## Examples
-
 ### Basic Scan
-```
+
+```bash
 python wp_scanner.py -t example.com
 ```
 
-### Vulnerability Scan with Custom Output Directory
-```
-python wp_scanner.py -t example.com -o scan_results
-```
+### Scan with Exploitation
 
-### Scan with Proxy and Exploitation
-```
-python wp_scanner.py -t example.com --proxy http://127.0.0.1:8080 --exploit
+```bash
+python wp_scanner.py -t example.com --exploit
 ```
 
-### Custom Threads and Timeout
+### Mass Scan from File
+
+```bash
+python wp_scanner.py -l targets.txt --mass-output-dir mass_results
 ```
-python wp_scanner.py -t example.com --threads 10 --timeout 60
+
+### Update Tool and Vulnerability Databases
+
+```bash
+python wp_scanner.py --update
 ```
 
-## Supported Exploits
+### Scan with Auto-Update
 
-- **Authentication Bypass**: XML-RPC authentication bypass exploitation
-- **RCE Exploits**: 
-  - Contact Form 7 file upload vulnerability
-  - WP Super Cache code injection
-  - TimThumb RCE vulnerability
-  - WP Bakery page builder vulnerability
-  - WP File Manager RCE vulnerability
-- **SQL Injection**: 
-  - wpDataTables SQL injection vulnerability
-- **Enumeration**:
-  - User enumeration via author parameter
-  - XML-RPC user enumeration
-  - REST API user information exposure
-- **Authentication Exploits**:
-  - Password reset token leak vulnerability
-  - Authenticated code injection via theme/plugin editors
+```bash
+python wp_scanner.py -t example.com --auto-update
+```
 
-## Project Structure
+### Additional Options
 
-- `wp_scanner.py`: Main scanner script
-- `modules/`: Directory containing the scanner modules
-  - `fingerprinter.py`: WordPress detection and fingerprinting
-  - `vuln_scanner.py`: Vulnerability scanning
-  - `exploiter.py`: Exploitation of discovered vulnerabilities
-  - `utils.py`: Utility functions
-- `data/`: Directory for vulnerability databases
-  - `wordpress_vulns.json`: WordPress core vulnerabilities
-  - `plugins_vulns.json`: Plugin vulnerabilities
-  - `themes_vulns.json`: Theme vulnerabilities
+```
+usage: wp_scanner.py [-h] [-t TARGET] [-l TARGETS_FILE] [-o OUTPUT]
+                     [--threads THREADS] [--timeout TIMEOUT]
+                     [--user-agent USER_AGENT] [--proxy PROXY] [--exploit]
+                     [-v] [--mass-output-dir MASS_OUTPUT_DIR] [--update]
+                     [--auto-update]
 
-## Security Bypass Techniques
+WordPress Vulnerability Scanner and Exploitation Tool
 
-The scanner includes techniques to bypass common WordPress security measures:
-- WAF evasion techniques in HTTP requests
-- Security plugin detection and evasion
-- XML-RPC restrictions bypass
-- REST API restrictions bypass
+optional arguments:
+  -h, --help            show this help message and exit
+  -t TARGET, --target TARGET
+                        Target WordPress site URL
+  -l TARGETS_FILE, --targets-file TARGETS_FILE
+                        File containing list of target URLs (one per line)
+  -o OUTPUT, --output OUTPUT
+                        Output directory for scan results
+  --threads THREADS     Number of threads (default: 5)
+  --timeout TIMEOUT     Request timeout in seconds (default: 30)
+  --user-agent USER_AGENT
+                        Custom User-Agent string
+  --proxy PROXY         Proxy URL (e.g., http://127.0.0.1:8080)
+  --exploit             Attempt to exploit found vulnerabilities
+  -v, --verbose         Enable verbose output
+  --mass-output-dir MASS_OUTPUT_DIR
+                        Base directory for mass scan results
+  --update              Update the tool and vulnerability databases
+  --auto-update         Automatically update the tool before scanning
+```
 
-## Legal Disclaimer
+## Demo
 
-This tool is provided for educational and research purposes only. The author is not responsible for any misuse or damage caused by this program. Users are responsible for compliance with all applicable laws and regulations in their jurisdiction. Use of this tool for attacking targets without prior mutual consent is illegal and prohibited. The developer assumes no liability and is not responsible for any misuse or damage caused by this program.
+### Vulnerability Scanning
 
-**Use at your own risk.**
+![Vulnerability Scan Results](screenshots/scan_results.png)
+
+### Successful Exploitation
+
+![Exploitation Results](screenshots/exploit_results.png)
+
+## Output Structure
+
+The tool creates a results directory for each scan with the following structure:
+
+```
+results_example.com_20240101_120000/
+├── scan_results.log          # Detailed log of the scanning process
+├── wp_info.json              # WordPress information (version, themes, plugins, etc.)
+├── vulnerabilities.json      # Detected vulnerabilities
+└── exploitation_results.json # Results of exploitation attempts (if --exploit is used)
+```
+
+## Disclaimer
+
+This tool is intended for ethical use only. Always obtain proper authorization before scanning or attempting to exploit any website. The creators of this tool are not responsible for any misuse or damage caused by this program.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Donations
+
+If you find this tool valuable, consider donating to support ongoing development:
+
+- BTC: bc1qtkm7dzjp76gx8t9c02pshfd8rzarj6gj9yzglu
+- ETH: 0x88Aa0E09a5A62919321f38Fb4782A17f4dc91A9B
+- XMR: 0x6730c52B3369fD22E3ACc6090a3Ee7d5C617aBE0
 
 ## License
 

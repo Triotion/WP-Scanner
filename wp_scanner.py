@@ -21,6 +21,7 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from modules.fingerprinter import WPFingerprinter
 from modules.vuln_scanner import VulnerabilityScanner
 from modules.exploiter import Exploiter
+from modules.updater import Updater
 from modules.utils import banner, Logger, create_directory, print_info, print_success, print_error, print_warning
 
 # Disable SSL warnings
@@ -39,48 +40,103 @@ class WPScanner:
         self.proxy = args.proxy
         self.exploit = args.exploit
         self.verbose = args.verbose
+        self.auto_update = args.auto_update
         
-        # Ensure target URL has proper format
-        if not self.target.startswith(('http://', 'https://')):
-            self.target = 'http://' + self.target
+        # Set up updater
+        self.updater = Updater()
         
-        # Remove trailing slash
-        if self.target.endswith('/'):
-            self.target = self.target[:-1]
+        # Handle auto-updates if enabled
+        if self.auto_update:
+            if self.updater.check_for_updates():
+                print_info("Auto-update is enabled. Checking for updates...")
+                self._update_components()
+        
+        # Continue with scanner setup if we have a target
+        if self.target:
+            # Ensure target URL has proper format
+            if not self.target.startswith(('http://', 'https://')):
+                self.target = 'http://' + self.target
             
-        # Create output directory
-        if self.output_dir:
-            create_directory(self.output_dir)
-            self.logger = Logger(os.path.join(self.output_dir, 'scan_results.log'))
-        else:
-            domain = urlparse(self.target).netloc
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.output_dir = f"results_{domain}_{timestamp}"
-            create_directory(self.output_dir)
-            self.logger = Logger(os.path.join(self.output_dir, 'scan_results.log'))
-        
-        # Set up session
-        self.session = requests.Session()
-        if self.proxy:
-            self.session.proxies = {
-                'http': self.proxy,
-                'https': self.proxy
+            # Remove trailing slash
+            if self.target.endswith('/'):
+                self.target = self.target[:-1]
+                
+            # Create output directory
+            if self.output_dir:
+                create_directory(self.output_dir)
+                self.logger = Logger(os.path.join(self.output_dir, 'scan_results.log'))
+            else:
+                domain = urlparse(self.target).netloc
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                self.output_dir = f"results_{domain}_{timestamp}"
+                create_directory(self.output_dir)
+                self.logger = Logger(os.path.join(self.output_dir, 'scan_results.log'))
+            
+            # Set up session
+            self.session = requests.Session()
+            if self.proxy:
+                self.session.proxies = {
+                    'http': self.proxy,
+                    'https': self.proxy
+                }
+            
+            # Set default headers
+            self.headers = {
+                'User-Agent': self.user_agent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'close',
+                'Upgrade-Insecure-Requests': '1'
             }
+            
+            # Initialize components
+            self.fingerprinter = WPFingerprinter(self.session, self.target, self.headers, self.timeout, self.output_dir)
+            self.vuln_scanner = VulnerabilityScanner(self.session, self.target, self.headers, self.timeout, self.threads, self.output_dir)
+            self.exploiter = Exploiter(self.session, self.target, self.headers, self.timeout, self.output_dir)
+    
+    def _update_components(self):
+        """Update tool components"""
+        success, update_results = self.updater.update_all()
+        return success
+    
+    def handle_update_command(self):
+        """Handle the update command"""
+        banner()
+        print_info("Starting update process...")
+        success, update_results = self.updater.update_all()
         
-        # Set default headers
-        self.headers = {
-            'User-Agent': self.user_agent,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'close',
-            'Upgrade-Insecure-Requests': '1'
-        }
+        if success:
+            print_success("Update completed successfully")
+        else:
+            print_warning("Update completed with some issues")
         
-        # Initialize components
-        self.fingerprinter = WPFingerprinter(self.session, self.target, self.headers, self.timeout, self.output_dir)
-        self.vuln_scanner = VulnerabilityScanner(self.session, self.target, self.headers, self.timeout, self.threads, self.output_dir)
-        self.exploiter = Exploiter(self.session, self.target, self.headers, self.timeout, self.output_dir)
+        # Print detailed results
+        print("\n" + "="*80)
+        print(f"{Fore.YELLOW}UPDATE RESULTS{Style.RESET_ALL}")
+        print("="*80 + "\n")
+        
+        # Tool update results
+        tool_result = update_results.get('tool', {})
+        tool_success = tool_result.get('success', False)
+        tool_message = tool_result.get('message', 'Unknown')
+        
+        print(f"Tool update: {Fore.GREEN if tool_success else Fore.RED}{tool_success}{Style.RESET_ALL}")
+        print(f"Details: {tool_message}\n")
+        
+        # Database update results
+        db_result = update_results.get('databases', {})
+        db_success = db_result.get('success', False)
+        updated_dbs = db_result.get('updated', [])
+        
+        print(f"Database updates: {Fore.GREEN if db_success else Fore.RED}{db_success}{Style.RESET_ALL}")
+        
+        if updated_dbs:
+            print(f"Updated databases: {', '.join(updated_dbs)}")
+        else:
+            print("No databases were updated (either up-to-date or failed)")
+        
+        return success
         
     def run(self):
         """Main scanning method"""
@@ -121,20 +177,151 @@ class WPScanner:
                 vulnerabilities = self.vuln_scanner.scan(wp_info)
                 
                 if vulnerabilities:
-                    print_success(f"Found {len(vulnerabilities)} potential vulnerabilities")
+                    # Count actual vulnerabilities
+                    vuln_list = []
+                    
+                    # Process core vulnerabilities
+                    if vulnerabilities.get("core"):
+                        if isinstance(vulnerabilities["core"], list):
+                            vuln_list.extend(vulnerabilities["core"])
+                        elif isinstance(vulnerabilities["core"], dict) and vulnerabilities["core"]:
+                            # Handle potential dictionary format
+                            for version, vulns in vulnerabilities["core"].items():
+                                if isinstance(vulns, list):
+                                    vuln_list.extend(vulns)
+                    
+                    # Process plugin vulnerabilities
+                    if vulnerabilities.get("plugins"):
+                        for plugin, plugin_data in vulnerabilities["plugins"].items():
+                            if isinstance(plugin_data, dict) and "vulns" in plugin_data:
+                                for vuln in plugin_data["vulns"]:
+                                    vuln_copy = vuln.copy()
+                                    vuln_copy["plugin"] = plugin
+                                    vuln_list.append(vuln_copy)
+                            elif isinstance(plugin_data, list):
+                                vuln_list.extend(plugin_data)
+                    
+                    # Process theme vulnerabilities
+                    if vulnerabilities.get("themes") and isinstance(vulnerabilities["themes"], list):
+                        vuln_list.extend(vulnerabilities["themes"])
+                    
+                    print_success(f"Found {len(vuln_list)} potential vulnerabilities")
+                    
+                    # Display vulnerability details in terminal
+                    print("\n" + "="*80)
+                    print(f"{Fore.YELLOW}VULNERABILITY SCAN DETAILS{Style.RESET_ALL}")
+                    print("="*80)
+                    
+                    # Core vulnerabilities
+                    if vulnerabilities.get("core") and isinstance(vulnerabilities["core"], list) and vulnerabilities["core"]:
+                        print(f"\n{Fore.RED}WordPress Core Vulnerabilities{Style.RESET_ALL}")
+                        for vuln in vulnerabilities["core"]:
+                            print(f"  • {Fore.RED}{vuln.get('severity', 'Unknown')}{Style.RESET_ALL}: {vuln.get('title', 'Unknown')}")
+                            print(f"    - {vuln.get('description', 'No description available')}")
+                            print(f"    - CVE: {vuln.get('cve', 'N/A')}")
+                            print(f"    - Affected: {vuln.get('affected_version', 'Unknown')}, Fixed in: {vuln.get('fixed_in', 'Unknown')}")
+                            print(f"    - Exploitability: {vuln.get('exploitability', 'Unknown')}")
+                            print(f"    - Exploit Available: {'Yes' if vuln.get('exploit_available', False) else 'No'}")
+                            print()
+                    
+                    # Plugin vulnerabilities
+                    if vulnerabilities.get("plugins"):
+                        has_plugin_vulns = False
+                        for plugin, plugin_data in vulnerabilities["plugins"].items():
+                            if isinstance(plugin_data, dict) and "vulns" in plugin_data and plugin_data["vulns"]:
+                                if not has_plugin_vulns:
+                                    print(f"\n{Fore.RED}Plugin Vulnerabilities{Style.RESET_ALL}")
+                                    has_plugin_vulns = True
+                                
+                                print(f"  Plugin: {Fore.CYAN}{plugin}{Style.RESET_ALL} (v{plugin_data.get('version', 'Unknown')})")
+                                for vuln in plugin_data["vulns"]:
+                                    print(f"  • {Fore.RED}{vuln.get('severity', 'Unknown')}{Style.RESET_ALL}: {vuln.get('title', 'Unknown')}")
+                                    print(f"    - {vuln.get('description', 'No description available')}")
+                                    print(f"    - CVE: {vuln.get('cve', 'N/A')}")
+                                    print(f"    - Fixed in: {vuln.get('fixed_in', 'Unknown')}")
+                                    print(f"    - Exploitability: {vuln.get('exploitability', 'Unknown')}")
+                                    print(f"    - Exploit Available: {'Yes' if vuln.get('exploit_available', False) else 'No'}")
+                                    print()
+                    
+                    # Theme vulnerabilities
+                    if vulnerabilities.get("themes") and isinstance(vulnerabilities["themes"], list) and vulnerabilities["themes"]:
+                        print(f"\n{Fore.RED}Theme Vulnerabilities{Style.RESET_ALL}")
+                        for vuln in vulnerabilities["themes"]:
+                            theme_name = vuln.get('theme', 'Unknown')
+                            print(f"  Theme: {Fore.CYAN}{theme_name}{Style.RESET_ALL}")
+                            print(f"  • {Fore.RED}{vuln.get('severity', 'Unknown')}{Style.RESET_ALL}: {vuln.get('title', 'Unknown')}")
+                            print(f"    - {vuln.get('description', 'No description available')}")
+                            print(f"    - CVE: {vuln.get('cve', 'N/A')}")
+                            print(f"    - Affected: {vuln.get('affected_version', 'Unknown')}, Fixed in: {vuln.get('fixed_in', 'Unknown')}")
+                            print(f"    - Exploitability: {vuln.get('exploitability', 'Unknown')}")
+                            print(f"    - Exploit Available: {'Yes' if vuln.get('exploit_available', False) else 'No'}")
+                            print()
+                    
+                    print("="*80)
                     
                     # Save vulnerability results
                     with open(os.path.join(self.output_dir, 'vulnerabilities.json'), 'w') as f:
                         json.dump(vulnerabilities, f, indent=4)
                     
                     # Attempt exploitation if enabled
-                    if self.exploit:
+                    if self.exploit and vuln_list:
                         print_info("Attempting to exploit vulnerabilities...")
-                        exploitation_results = self.exploiter.exploit(vulnerabilities)
+                        exploitation_results = self.exploiter.exploit(vuln_list)
                         
                         # Save exploitation results
                         with open(os.path.join(self.output_dir, 'exploitation_results.json'), 'w') as f:
                             json.dump(exploitation_results, f, indent=4)
+                            
+                        # Display exploitation results in terminal
+                        print("\n" + "="*80)
+                        print(f"{Fore.YELLOW}EXPLOITATION RESULTS{Style.RESET_ALL}")
+                        print("="*80)
+                        
+                        # Count successful and failed exploits
+                        successful = [r for r in exploitation_results if r.get('status') == 'success']
+                        failed = [r for r in exploitation_results if r.get('status') in ['failed', 'error']]
+                        skipped = [r for r in exploitation_results if r.get('status') == 'skipped']
+                        
+                        # Summary
+                        print(f"\nTotal attempts: {len(exploitation_results)}")
+                        print(f"{Fore.GREEN}Successful: {len(successful)}{Style.RESET_ALL}")
+                        print(f"{Fore.RED}Failed: {len(failed)}{Style.RESET_ALL}")
+                        print(f"{Fore.YELLOW}Skipped: {len(skipped)}{Style.RESET_ALL}\n")
+                        
+                        # Show successful exploits
+                        if successful:
+                            print(f"{Fore.GREEN}Successful Exploits:{Style.RESET_ALL}")
+                            for result in successful:
+                                vuln_title = result.get('vulnerability', 'Unknown Vulnerability')
+                                print(f"  • {Fore.GREEN}{vuln_title}{Style.RESET_ALL}")
+                                
+                                # Show details if available
+                                if 'details' in result:
+                                    print(f"    - {result['details']}")
+                                
+                                # Show data if available
+                                if 'data' in result and result['data']:
+                                    for key, value in result['data'].items():
+                                        if isinstance(value, list) and len(value) > 0:
+                                            print(f"    - {key}: {', '.join(str(v) for v in value[:5])}{' ...' if len(value) > 5 else ''}")
+                                        elif isinstance(value, dict) and value:
+                                            print(f"    - {key}: {json.dumps(value, indent=2)[:100]}...")
+                                        else:
+                                            print(f"    - {key}: {value}")
+                                print()
+                        
+                        # Show failed exploits
+                        if failed:
+                            print(f"{Fore.RED}Failed Exploits:{Style.RESET_ALL}")
+                            for result in failed:
+                                vuln_title = result.get('vulnerability', 'Unknown Vulnerability')
+                                reason = result.get('reason', 'Unknown reason')
+                                print(f"  • {Fore.RED}{vuln_title}{Style.RESET_ALL}: {reason}")
+                            print()
+                        
+                        print("="*80)
+                        print(f"Detailed results saved to: {os.path.join(self.output_dir, 'exploitation_results.json')}")
+                        print("="*80)
                 else:
                     print_info("No vulnerabilities found")
             else:
@@ -149,6 +336,48 @@ class WPScanner:
         
         print_info(f"Scan completed. Results saved to {self.output_dir}")
         self.logger.log(f"Scan completed. Results saved to {self.output_dir}")
+        
+        # Display scan summary
+        print("\n" + "="*80)
+        print(f"{Fore.CYAN}SCAN SUMMARY FOR {self.target}{Style.RESET_ALL}")
+        print("="*80)
+        
+        if wp_info:
+            print(f"\n{Fore.BLUE}WordPress Information:{Style.RESET_ALL}")
+            print(f"  • Version: {Fore.YELLOW}{wp_info.get('version', 'Unknown')}{Style.RESET_ALL}")
+            if wp_info.get('version_sources'):
+                print(f"  • Version Sources: {', '.join(wp_info.get('version_sources', []))}")
+            
+            # Themes
+            if wp_info.get('themes'):
+                print(f"  • Themes: {Fore.MAGENTA}{', '.join(wp_info.get('themes', []))}{Style.RESET_ALL}")
+            
+            # Plugins
+            if wp_info.get('plugins'):
+                if isinstance(wp_info['plugins'], list):
+                    print(f"  • Plugins: {Fore.CYAN}{', '.join(wp_info.get('plugins', []))}{Style.RESET_ALL}")
+                elif isinstance(wp_info['plugins'], dict):
+                    plugin_list = list(wp_info['plugins'].keys())
+                    print(f"  • Plugins: {Fore.CYAN}{', '.join(plugin_list)}{Style.RESET_ALL}")
+            
+            # Users
+            user_count = len(wp_info.get('users', []))
+            if user_count > 0:
+                user_info = []
+                for user in wp_info.get('users', [])[:5]:  # Show max 5 users
+                    if isinstance(user, dict):
+                        if 'name' in user and 'id' in user:
+                            user_info.append(f"{user.get('name')} (ID: {user.get('id')})")
+                        elif 'username' in user:
+                            user_info.append(user.get('username'))
+                
+                print(f"  • Users: {user_count} found" + (f" - {', '.join(user_info)}" if user_info else ""))
+            
+            # API info
+            print(f"  • XML-RPC Enabled: {Fore.GREEN if not wp_info.get('xmlrpc_enabled') else Fore.RED}{wp_info.get('xmlrpc_enabled', False)}{Style.RESET_ALL}")
+            print(f"  • REST API Enabled: {Fore.GREEN if not wp_info.get('rest_api_enabled') else Fore.RED}{wp_info.get('rest_api_enabled', False)}{Style.RESET_ALL}")
+        
+        print("\n" + "="*80)
 
 def main():
     parser = argparse.ArgumentParser(description='WordPress Vulnerability Scanner and Exploitation Tool')
@@ -162,10 +391,19 @@ def main():
     parser.add_argument('--exploit', action='store_true', help='Attempt to exploit found vulnerabilities')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     parser.add_argument('--mass-output-dir', help='Base directory for mass scan results (default: mass_scan_results)')
+    parser.add_argument('--update', action='store_true', help='Update the tool and vulnerability databases')
+    parser.add_argument('--auto-update', action='store_true', help='Automatically update the tool before scanning')
     
     args = parser.parse_args()
     
-    # Validate arguments
+    # Handle update command
+    if args.update:
+        updater = Updater()
+        scanner = WPScanner(args)
+        success = scanner.handle_update_command()
+        sys.exit(0 if success else 1)
+    
+    # Validate arguments for scanning
     if not args.target and not args.targets_file:
         parser.error("Either --target or --targets-file must be specified")
     
@@ -233,13 +471,38 @@ def main():
                         if os.path.exists(vuln_file):
                             with open(vuln_file, 'r') as vf:
                                 vulns = json.load(vf)
-                                f.write(f"Vulnerabilities Found: {len(vulns)}\n")
                                 
-                                # Count by severity
+                                # Count vulnerabilities across all categories
+                                vuln_count = 0
                                 severity_counts = {'Critical': 0, 'High': 0, 'Medium': 0, 'Low': 0, 'Unknown': 0}
-                                for vuln in vulns:
-                                    severity = vuln.get('severity', 'Unknown')
-                                    severity_counts[severity] += 1
+                                
+                                # Process core vulnerabilities
+                                if isinstance(vulns.get("core"), list):
+                                    core_vulns = vulns["core"]
+                                    vuln_count += len(core_vulns)
+                                    for vuln in core_vulns:
+                                        severity = vuln.get('severity', 'Unknown')
+                                        severity_counts[severity] += 1
+                                
+                                # Process plugin vulnerabilities
+                                if vulns.get("plugins"):
+                                    for plugin, plugin_data in vulns["plugins"].items():
+                                        if isinstance(plugin_data, dict) and "vulns" in plugin_data:
+                                            plugin_vulns = plugin_data["vulns"]
+                                            vuln_count += len(plugin_vulns)
+                                            for vuln in plugin_vulns:
+                                                severity = vuln.get('severity', 'Unknown')
+                                                severity_counts[severity] += 1
+                                
+                                # Process theme vulnerabilities
+                                if isinstance(vulns.get("themes"), list):
+                                    theme_vulns = vulns["themes"]
+                                    vuln_count += len(theme_vulns)
+                                    for vuln in theme_vulns:
+                                        severity = vuln.get('severity', 'Unknown')
+                                        severity_counts[severity] += 1
+                                
+                                f.write(f"Vulnerabilities Found: {vuln_count}\n")
                                 
                                 f.write(f"  Critical: {severity_counts['Critical']}\n")
                                 f.write(f"  High: {severity_counts['High']}\n")

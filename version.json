@@ -1,0 +1,9 @@
+{
+    "version": "1.0.0",
+    "name": "WP-Scanner",
+    "description": "Advanced WordPress Vulnerability Scanner and Exploitation Tool",
+    "last_updated": "2025-04-18",
+    "release_notes": "Initial release",
+    "repository": "https://github.com/Triotion/wp-scanner",
+    "latest_version_url": "https://raw.githubusercontent.com/Triotion/wp-scanner/master/version.json"
+} 
