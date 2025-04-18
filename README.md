@@ -108,11 +108,14 @@ optional arguments:
 
 ### Vulnerability Scanning
 
-![Vulnerability Scan Results](screenshots/scan_results.png)
+![Vulnerability Scan Results](screenshots/scan_1.png)
 
-### Successful Exploitation
+![Vulnerability Scan Results](screenshots/scan_2.png)
 
-![Exploitation Results](screenshots/exploit_results.png)
+![Vulnerability Scan Results](screenshots/scan_3.png)
+
+![Vulnerability Scan Results](screenshots/scan_4.png)
+
 
 ## Output Structure
 
