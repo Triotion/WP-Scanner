@@ -171,9 +171,15 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 If you find this tool valuable, consider donating to support ongoing development:
 
-- BTC: bc1qtkm7dzjp76gx8t9c02pshfd8rzarj6gj9yzglu
-- ETH: 0x88Aa0E09a5A62919321f38Fb4782A17f4dc91A9B
-- XMR: 0x6730c52B3369fD22E3ACc6090a3Ee7d5C617aBE0
+- **BTC**: `bc1qtkm7dzjp76gx8t9c02pshfd8rzarj6gj9yzglu`
+- **ETH**: `0x88Aa0E09a5A62919321f38Fb4782A17f4dc91A9B`
+- **XMR**: `0x6730c52B3369fD22E3ACc6090a3Ee7d5C617aBE0`
+
+
+## Author
+
+Created by [@Triotion](https://github.com/Triotion/) - [Telegram](https://t.me/Triotion)
+
 
 ## License
 
