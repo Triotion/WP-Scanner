@@ -72,18 +72,46 @@ python wp_scanner.py --update
 python wp_scanner.py -t example.com --auto-update
 ```
 
+### Target List Generation
+
+You can generate a list of targets using the helper script:
+
+```bash
+python create_targets_list.py -i raw_urls.txt -o targets.txt --check-wordpress
+```
+
+Usage:
+```
+usage: create_targets_list.py [-h] [-o OUTPUT] [-i INPUT] [-u URLS [URLS ...]]
+                              [--subdomains SUBDOMAINS] [--append] [--check-wordpress]
+
+Generate target list for WP-Scanner mass scans
+
+options:
+  -h, --help            show this help message and exit
+  -o OUTPUT, --output OUTPUT
+                        Output file for the target list
+  -i INPUT, --input INPUT
+                        Input file with targets (one per line)
+  -u URLS [URLS ...], --urls URLS [URLS ...]
+                        URLs to add to the target list
+  --subdomains SUBDOMAINS
+                        File with subdomains enumeration results
+  --append              Append to output file instead of overwriting
+  --check-wordpress     Basic check if targets are WordPress (slower)
+```
+
 ### Additional Options
 
 ```
-usage: wp_scanner.py [-h] [-t TARGET] [-l TARGETS_FILE] [-o OUTPUT]
-                     [--threads THREADS] [--timeout TIMEOUT]
-                     [--user-agent USER_AGENT] [--proxy PROXY] [--exploit]
-                     [-v] [--mass-output-dir MASS_OUTPUT_DIR] [--update]
-                     [--auto-update]
+usage: wp_scanner.py [-h] [-t TARGET] [-l TARGETS_FILE] [-o OUTPUT] [--threads THREADS]
+                     [--timeout TIMEOUT] [--user-agent USER_AGENT] [--proxy PROXY] [--exploit] [-v]      
+                     [--mass-output-dir MASS_OUTPUT_DIR] [--update] [--auto-update]
+                     [--report-format {console,html,md}]
 
 WordPress Vulnerability Scanner and Exploitation Tool
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -t TARGET, --target TARGET
                         Target WordPress site URL
@@ -99,9 +127,11 @@ optional arguments:
   --exploit             Attempt to exploit found vulnerabilities
   -v, --verbose         Enable verbose output
   --mass-output-dir MASS_OUTPUT_DIR
-                        Base directory for mass scan results
+                        Base directory for mass scan results (default: mass_scan_results)
   --update              Update the tool and vulnerability databases
   --auto-update         Automatically update the tool before scanning
+  --report-format {console,html,md}
+                        Output report format (default: console)
 ```
 
 ## Demo
@@ -147,4 +177,4 @@ If you find this tool valuable, consider donating to support ongoing development
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.

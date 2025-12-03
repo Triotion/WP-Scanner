@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+import concurrent.futures
 from urllib.parse import urlparse, urljoin
 
 import requests
@@ -12,335 +13,467 @@ from bs4 import BeautifulSoup
 from modules.utils import print_info, print_success, print_error, print_warning, print_verbose
 
 class WPFingerprinter:
-    def __init__(self, session, target, headers, timeout, output_dir):
+    def __init__(self, session, target, headers, timeout, output_dir, threads=5):
         self.session = session
         self.target = target
         self.headers = headers
         self.timeout = timeout
         self.output_dir = output_dir
-        
-        # WordPress API endpoints for WP API v2
-        self.api_url = f"{self.target}/wp-json/wp/v2"
-        self.api_endpoints = {
-            'posts': f"{self.api_url}/posts",
-            'pages': f"{self.api_url}/pages",
-            'users': f"{self.api_url}/users",
-            'categories': f"{self.api_url}/categories",
-            'tags': f"{self.api_url}/tags"
+        self.threads = threads
+        self.api_url = f"{self.target}/wp-json/"
+        self.wp_info = {
+            "is_wordpress": False,
+            "detection_score": 0,
+            "detection_methods": [],
+            "version": "Unknown",
+            "version_sources": [],
+            "themes": [],
+            "plugins": {},
+            "users": [],
+            "xmlrpc_enabled": False,
+            "rest_api_enabled": False
         }
-        
-        # Common WordPress files and paths
-        self.wp_paths = [
-            '/wp-login.php',
-            '/wp-admin/',
-            '/wp-content/',
-            '/wp-includes/',
-            '/xmlrpc.php',
-            '/wp-cron.php',
-            '/wp-config.php',
-            '/wp-json/'
-        ]
-        
+        self.wp_detection_score = 0
+
     def is_wordpress(self):
-        """Check if the target is running WordPress"""
-        print_info("Checking if target is running WordPress...")
-        
-        # Method 1: Check for WordPress common paths
-        for path in self.wp_paths[:4]:  # Only check the first few common paths
-            try:
-                url = self.target + path
-                response = self.session.get(url, headers=self.headers, timeout=self.timeout, verify=False)
-                
-                if response.status_code == 200:
-                    print_success(f"WordPress path found: {path}")
-                    return True
-            except Exception as e:
-                print_verbose(f"Error checking {path}: {str(e)}")
-        
-        # Method 2: Check HTML source for WordPress indicators
-        try:
-            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
-            if response.status_code == 200:
-                html = response.text.lower()
-                
-                # Check for WordPress indicators in HTML
-                wp_indicators = [
-                    'wp-content',
-                    'wp-includes',
-                    'wordpress',
-                    'generator" content="wordpress'
-                ]
-                
-                for indicator in wp_indicators:
-                    if indicator in html:
-                        print_success(f"WordPress indicator found: {indicator}")
-                        return True
-                
-                # Check for WordPress in generator meta tag
-                soup = BeautifulSoup(response.text, 'html.parser')
-                meta_generator = soup.find('meta', {'name': 'generator'})
-                if meta_generator and 'wordpress' in meta_generator.get('content', '').lower():
-                    print_success("WordPress detected in meta generator tag")
-                    return True
-        except Exception as e:
-            print_error(f"Error checking main page: {str(e)}")
-        
-        # Method 3: Check for WP API
-        try:
-            response = self.session.get(self.api_url, headers=self.headers, timeout=self.timeout, verify=False)
-            if response.status_code == 200:
-                print_success("WordPress API detected")
-                return True
-        except Exception as e:
-            print_verbose(f"Error checking WP API: {str(e)}")
-        
-        return False
-    
-    def get_version(self):
-        """Get WordPress version"""
-        version = None
-        version_sources = []
-        
-        # Method 1: Check meta generator tag
-        try:
-            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                meta_generator = soup.find('meta', {'name': 'generator'})
-                
-                if meta_generator and 'wordpress' in meta_generator.get('content', '').lower():
-                    meta_version = re.search(r'WordPress (\d+\.\d+\.?\d*)', meta_generator['content'])
-                    if meta_version:
-                        version = meta_version.group(1)
-                        version_sources.append("meta generator tag")
-        except Exception as e:
-            print_verbose(f"Error getting version from meta tag: {str(e)}")
-        
-        # Method 2: Check readme.html
-        if not version:
-            try:
-                readme_url = f"{self.target}/readme.html"
-                response = self.session.get(readme_url, headers=self.headers, timeout=self.timeout, verify=False)
-                
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    version_text = soup.find(text=re.compile(r'Version \d+\.\d+'))
-                    
-                    if version_text:
-                        version_match = re.search(r'Version (\d+\.\d+\.?\d*)', version_text)
-                        if version_match:
-                            version = version_match.group(1)
-                            version_sources.append("readme.html")
-            except Exception as e:
-                print_verbose(f"Error getting version from readme.html: {str(e)}")
-        
-        # Method 3: Check feed
-        if not version:
-            try:
-                feed_url = f"{self.target}/feed/"
-                response = self.session.get(feed_url, headers=self.headers, timeout=self.timeout, verify=False)
-                
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, 'xml')
-                    generator = soup.find('generator')
-                    
-                    if generator and 'wordpress' in generator.text.lower():
-                        version_match = re.search(r'wordpress\.org/\?v=(\d+\.\d+\.?\d*)', generator.text)
-                        if version_match:
-                            version = version_match.group(1)
-                            version_sources.append("RSS feed")
-            except Exception as e:
-                print_verbose(f"Error getting version from feed: {str(e)}")
-        
-        return version, version_sources
-    
-    def get_theme(self):
-        """Get WordPress theme information"""
-        themes = []
-        
-        # Method 1: Check HTML source
-        try:
-            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
-            if response.status_code == 200:
-                # Look for theme info in HTML
-                theme_patterns = [
-                    r'/wp-content/themes/([^/]+)/',
-                    r'themes/([^/]+)/style\.css'
-                ]
-                
-                for pattern in theme_patterns:
-                    matches = re.findall(pattern, response.text)
-                    themes.extend(matches)
-                
-                # Remove duplicates
-                themes = list(set(themes))
-                
-                # Check if theme has style.css with version info
-                for theme in themes:
-                    try:
-                        style_url = f"{self.target}/wp-content/themes/{theme}/style.css"
-                        style_response = self.session.get(style_url, headers=self.headers, timeout=self.timeout, verify=False)
-                        
-                        if style_response.status_code == 200:
-                            # Extract theme version if available
-                            version_match = re.search(r'Version:\s*(\d+\.\d+\.?\d*)', style_response.text)
-                            if version_match:
-                                theme_version = version_match.group(1)
-                                theme_index = themes.index(theme)
-                                themes[theme_index] = f"{theme} (v{theme_version})"
-                    except Exception:
-                        pass
-        except Exception as e:
-            print_verbose(f"Error getting theme info: {str(e)}")
-        
-        return themes
-    
-    def get_plugins(self):
-        """Get WordPress plugins information"""
-        plugins = []
-        
-        # Method 1: Check for plugin paths in HTML and JS files
-        try:
-            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
-            if response.status_code == 200:
-                # Look for plugin info in HTML
-                plugin_pattern = r'/wp-content/plugins/([^/]+)/'
-                matches = re.findall(plugin_pattern, response.text)
-                plugins.extend(matches)
-                
-                # Check for plugin references in JavaScript files
-                soup = BeautifulSoup(response.text, 'html.parser')
-                scripts = soup.find_all('script', src=True)
-                
-                for script in scripts:
-                    if 'wp-content' in script['src']:
-                        try:
-                            js_url = script['src']
-                            if not js_url.startswith(('http://', 'https://')):
-                                if js_url.startswith('//'):
-                                    js_url = 'https:' + js_url
-                                elif js_url.startswith('/'):
-                                    js_url = urljoin(self.target, js_url)
-                                else:
-                                    js_url = urljoin(self.target, '/' + js_url)
-                            
-                            js_response = self.session.get(js_url, headers=self.headers, timeout=self.timeout, verify=False)
-                            if js_response.status_code == 200:
-                                plugin_matches = re.findall(plugin_pattern, js_response.text)
-                                plugins.extend(plugin_matches)
-                        except Exception:
-                            pass
-                
-                # Remove duplicates
-                plugins = list(set(plugins))
-        except Exception as e:
-            print_verbose(f"Error getting plugin info: {str(e)}")
-        
-        return plugins
-    
-    def enumerate_users(self):
-        """Enumerate WordPress users"""
-        users = []
-        
-        # Method 1: Check WP API
-        try:
-            response = self.session.get(self.api_endpoints['users'], headers=self.headers, timeout=self.timeout, verify=False)
-            if response.status_code == 200:
-                api_users = response.json()
-                for user in api_users:
-                    if 'name' in user and 'id' in user:
-                        users.append({
-                            'id': user['id'],
-                            'name': user['name'],
-                            'slug': user.get('slug', ''),
-                            'role': user.get('roles', ['unknown'])[0] if 'roles' in user else 'unknown'
-                        })
-        except Exception as e:
-            print_verbose(f"Error enumerating users via API: {str(e)}")
-        
-        # Method 2: Check author archives
-        if not users:
-            try:
-                for i in range(1, 11):  # Try the first 10 author IDs
-                    author_url = f"{self.target}/?author={i}"
-                    response = self.session.get(author_url, headers=self.headers, timeout=self.timeout, verify=False, allow_redirects=True)
-                    
-                    if response.status_code == 200:
-                        # Check for author in URL (redirect)
-                        author_pattern = r'/author/([^/]+)/'
-                        matches = re.findall(author_pattern, response.url)
-                        
-                        if matches:
-                            users.append({
-                                'id': i,
-                                'name': 'Unknown',
-                                'slug': matches[0],
-                                'role': 'unknown'
-                            })
-                            
-                            # Try to get name from page
-                            soup = BeautifulSoup(response.text, 'html.parser')
-                            title = soup.find('title')
-                            if title:
-                                name_match = re.search(r'Author: (.+) |', title.text)
-                                if name_match:
-                                    users[-1]['name'] = name_match.group(1).strip()
-            except Exception as e:
-                print_verbose(f"Error enumerating users via author pages: {str(e)}")
-        
-        return users
-    
+        """
+        Check if the target is a WordPress site.
+        Returns True if the target is a WordPress site, False otherwise.
+        """
+        return self.wp_info["is_wordpress"]
+
     def fingerprint(self):
-        """Fingerprint WordPress installation"""
-        wp_info = {}
+        """
+        Fingerprint the WordPress installation by running a series of checks concurrently.
+        Returns a dictionary with the fingerprinting information.
+        """
+        print_info("Fingerprinting WordPress...")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.threads) as executor:
+            futures = [
+                executor.submit(self._check_wp_json),
+                executor.submit(self._check_meta_generator),
+                executor.submit(self._check_xmlrpc),
+                executor.submit(self._check_common_paths),
+                executor.submit(self._check_html_patterns),
+                executor.submit(self._check_readme),
+                executor.submit(self._check_wp_cron),
+                executor.submit(self._check_license_txt),
+                executor.submit(self._check_wp_links),
+                executor.submit(self._check_oembed),
+                executor.submit(self._check_trackback),
+                executor.submit(self._check_feed),
+                executor.submit(self._check_robots_txt),
+                executor.submit(self._check_sitemap_xml),
+                executor.submit(self._check_updraftplus),
+                executor.submit(self._check_jetpack),
+                executor.submit(self._check_wp_config),
+                executor.submit(self._check_wp_content),
+                executor.submit(self._check_wp_admin),
+                executor.submit(self._check_wp_login),
+                executor.submit(self._get_version),
+                executor.submit(self._get_themes),
+                executor.submit(self._get_plugins),
+                executor.submit(self._enumerate_users)
+            ]
+
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    result = future.result()
+                    if result:
+                        self._update_wp_info(result)
+                except Exception as e:
+                    print_verbose(f"Error during fingerprinting check: {str(e)}")
         
-        # Get WordPress version
-        version, version_sources = self.get_version()
-        if version:
-            wp_info['version'] = version
-            wp_info['version_sources'] = version_sources
+        self.wp_info["detection_score"] = self.wp_detection_score
+        self.wp_info["is_wordpress"] = self.wp_detection_score >= 3
+        if self.wp_info["is_wordpress"]:
+            print_success(f"WordPress confirmed (score: {self.wp_info['detection_score']}/10) via: {', '.join(self.wp_info['detection_methods'])}")
         else:
-            wp_info['version'] = 'Unknown'
-            wp_info['version_sources'] = []
-        
-        # Get WordPress theme
-        themes = self.get_theme()
-        if themes:
-            wp_info['themes'] = themes
-        else:
-            wp_info['themes'] = ['Unknown']
-        
-        # Get WordPress plugins
-        plugins = self.get_plugins()
-        if plugins:
-            wp_info['plugins'] = plugins
-        else:
-            wp_info['plugins'] = []
-        
-        # Enumerate users
-        users = self.enumerate_users()
-        if users:
-            wp_info['users'] = users
-        else:
-            wp_info['users'] = []
-        
-        # Check if xmlrpc.php is enabled
-        try:
-            xmlrpc_url = f"{self.target}/xmlrpc.php"
-            response = self.session.get(xmlrpc_url, headers=self.headers, timeout=self.timeout, verify=False)
-            
-            if response.status_code == 200 and 'XML-RPC server accepts POST requests only' in response.text:
-                wp_info['xmlrpc_enabled'] = True
+            print_error(f"The target {self.target} does not appear to be running WordPress.")
+
+        return self.wp_info
+
+    def _update_wp_info(self, result):
+        """Update the main wp_info dictionary with the results from a check."""
+        for key, value in result.items():
+            if key in ["detection_score"]:
+                self.wp_detection_score += value
+            elif key in ["detection_methods", "version_sources", "themes", "users"]:
+                self.wp_info[key].extend(value)
+            elif key == "plugins":
+                self.wp_info[key].update(value)
             else:
-                wp_info['xmlrpc_enabled'] = False
-        except Exception:
-            wp_info['xmlrpc_enabled'] = False
-        
-        # Check if REST API is enabled
+                self.wp_info[key] = value
+
+    def _check_wp_json(self):
+        """Check for the presence of the WP-JSON API."""
         try:
             response = self.session.get(self.api_url, headers=self.headers, timeout=self.timeout, verify=False)
-            wp_info['rest_api_enabled'] = response.status_code == 200
-        except Exception:
-            wp_info['rest_api_enabled'] = False
+            if response.status_code == 200 and 'routes' in response.json():
+                return {"detection_score": 3, "detection_methods": ["wp-json API"], "rest_api_enabled": True}
+        except (requests.RequestException, json.JSONDecodeError) as e:
+            print_verbose(f"Error checking WP-JSON API: {e}")
+        return {}
+
+    def _check_meta_generator(self):
+        """Check for the WordPress generator meta tag."""
+        try:
+            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            meta = soup.find('meta', attrs={'name': 'generator'})
+            if meta and 'wordpress' in meta.get('content', '').lower():
+                version_match = re.search(r'(\d+\.\d+(\.\d+)?)', meta['content'])
+                if version_match:
+                    return {
+                        "detection_score": 3,
+                        "detection_methods": ["meta generator tag"],
+                        "version": version_match.group(1),
+                        "version_sources": ["meta generator tag"]
+                    }
+                return {"detection_score": 3, "detection_methods": ["meta generator tag"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking meta generator tag: {e}")
+        return {}
+
+    def _check_xmlrpc(self):
+        """Check for the XML-RPC endpoint."""
+        try:
+            response = self.session.get(urljoin(self.target, 'xmlrpc.php'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200 and 'XML-RPC server accepts POST requests only' in response.text:
+                return {"detection_score": 2, "detection_methods": ["xmlrpc.php"], "xmlrpc_enabled": True}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking xmlrpc.php: {e}")
+        return {}
+
+    def _check_common_paths(self):
+        """Check for common WordPress paths."""
+        score = 0
+        paths = ['/wp-login.php', '/wp-admin/', '/wp-content/', '/wp-includes/']
+        for path in paths:
+            try:
+                response = self.session.get(urljoin(self.target, path), headers=self.headers, timeout=self.timeout, verify=False, allow_redirects=False)
+                if response.status_code in [200, 302, 403]:
+                    score += 1
+            except requests.RequestException:
+                continue
+        if score > 0:
+            return {"detection_score": score, "detection_methods": ["common paths"]}
+        return {}
+
+    def _check_html_patterns(self):
+        """Check for WordPress-specific patterns in the HTML source."""
+        try:
+            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
+            patterns = [
+                r'wp-content/themes/',
+                r'wp-content/plugins/',
+                r'wp-includes/js/wp-embed.min.js',
+                r'wp-includes/css/dist/block-library/style.min.css'
+            ]
+            score = sum(1 for pattern in patterns if re.search(pattern, response.text))
+            if score > 0:
+                return {"detection_score": score, "detection_methods": ["HTML patterns"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking HTML patterns: {e}")
+        return {}
+
+    def _check_readme(self):
+        """Check for the readme.html file."""
+        try:
+            response = self.session.get(urljoin(self.target, 'readme.html'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200 and 'wordpress' in response.text.lower():
+                return {"detection_score": 2, "detection_methods": ["readme.html"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking readme.html: {e}")
+        return {}
+
+    def _check_wp_cron(self):
+        """Check for wp-cron.php."""
+        try:
+            response = self.session.get(urljoin(self.target, 'wp-cron.php'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                return {"detection_score": 1, "detection_methods": ["wp-cron.php"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking wp-cron.php: {e}")
+        return {}
+
+    def _check_license_txt(self):
+        """Check for license.txt."""
+        try:
+            response = self.session.get(urljoin(self.target, 'license.txt'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200 and 'WordPress' in response.text:
+                return {"detection_score": 2, "detection_methods": ["license.txt"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking license.txt: {e}")
+        return {}
+
+    def _check_wp_links(self):
+        """Check for WordPress specific links in the homepage."""
+        try:
+            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                links = [a.get('href') for a in soup.find_all('a')]
+                score = 0
+                if any('wp-login.php' in str(link) for link in links):
+                    score += 1
+                if any('wp-admin' in str(link) for link in links):
+                    score += 1
+                if score > 0:
+                    return {"detection_score": score, "detection_methods": ["wp links"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking wp links: {e}")
+        return {}
+
+    def _check_oembed(self):
+        """Check for oEmbed links."""
+        try:
+            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                if 'wp-json/oembed' in response.text:
+                    return {"detection_score": 1, "detection_methods": ["oEmbed"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking oEmbed: {e}")
+        return {}
+
+    def _check_trackback(self):
+        """Check for trackback link."""
+        try:
+            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                if 'wp-trackback' in response.text:
+                    return {"detection_score": 1, "detection_methods": ["trackback"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking trackback: {e}")
+        return {}
+
+    def _check_feed(self):
+        """Check for feed link."""
+        try:
+            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                if 'feed' in response.text:
+                    return {"detection_score": 1, "detection_methods": ["feed"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking feed: {e}")
+        return {}
+
+    def _check_robots_txt(self):
+        """Check for robots.txt."""
+        try:
+            response = self.session.get(urljoin(self.target, 'robots.txt'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200 and 'wp-admin' in response.text:
+                return {"detection_score": 2, "detection_methods": ["robots.txt"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking robots.txt: {e}")
+        return {}
+
+    def _check_sitemap_xml(self):
+        """Check for sitemap.xml."""
+        try:
+            response = self.session.get(urljoin(self.target, 'sitemap.xml'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200 and 'wp-sitemap' in response.text:
+                return {"detection_score": 2, "detection_methods": ["sitemap.xml"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking sitemap.xml: {e}")
+        return {}
+
+    def _check_updraftplus(self):
+        """Check for UpdraftPlus backup files."""
+        try:
+            response = self.session.get(urljoin(self.target, 'wp-content/updraft/'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                return {"detection_score": 2, "detection_methods": ["UpdraftPlus"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking UpdraftPlus: {e}")
+        return {}
+
+    def _check_jetpack(self):
+        """Check for Jetpack files."""
+        try:
+            response = self.session.get(urljoin(self.target, 'wp-content/plugins/jetpack/'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                return {"detection_score": 2, "detection_methods": ["Jetpack"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking Jetpack: {e}")
+        return {}
+
+    def _check_wp_config(self):
+        """Check for wp-config.php."""
+        try:
+            response = self.session.get(urljoin(self.target, 'wp-config.php'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                return {"detection_score": 2, "detection_methods": ["wp-config.php"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking wp-config.php: {e}")
+        return {}
+
+    def _check_wp_content(self):
+        """Check for wp-content."""
+        try:
+            response = self.session.get(urljoin(self.target, 'wp-content/'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                return {"detection_score": 2, "detection_methods": ["wp-content"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking wp-content: {e}")
+        return {}
+
+    def _check_wp_admin(self):
+        """Check for wp-admin."""
+        try:
+            response = self.session.get(urljoin(self.target, 'wp-admin/'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                return {"detection_score": 2, "detection_methods": ["wp-admin"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking wp-admin: {e}")
+        return {}
+
+    def _check_wp_login(self):
+        """Check for wp-login.php."""
+        try:
+            response = self.session.get(urljoin(self.target, 'wp-login.php'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                return {"detection_score": 2, "detection_methods": ["wp-login.php"]}
+        except requests.RequestException as e:
+            print_verbose(f"Error checking wp-login.php: {e}")
+        return {}
+
+    def get_version(self):
+        """
+        Get the WordPress version.
+        Returns the WordPress version as a string.
+        """
+        return self.wp_info["version"]
+
+    def _get_version(self):
+        """Get the WordPress version from various sources."""
+        # 1. From wp-includes/version.php
+        try:
+            response = self.session.get(urljoin(self.target, 'wp-includes/version.php'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                match = re.search(r"\$wp_version\s*=\s*'([^']+)';", response.text)
+                if match:
+                    return {"version": match.group(1), "version_sources": ["version.php"]}
+        except requests.RequestException:
+            pass
+
+        # 2. From RSS feed
+        try:
+            response = self.session.get(urljoin(self.target, 'feed/'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                match = re.search(r'<generator>https://wordpress.org/\?v=([^<]+)</generator>', response.text)
+                if match:
+                    return {"version": match.group(1), "version_sources": ["RSS feed"]}
+        except requests.RequestException:
+            pass
         
-        return wp_info 
+        return {}
+
+    def get_theme(self):
+        """
+        Get the theme.
+        Returns the theme.
+        """
+        return self.wp_info["themes"]
+
+    def get_themes(self):
+        """
+        Get the list of themes.
+        Returns a list of themes.
+        """
+        return self.wp_info["themes"]
+
+    def _get_themes(self):
+        """Get the list of themes."""
+        try:
+            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
+            matches = re.findall(r'wp-content/themes/([^/]+)/', response.text)
+            themes = list(set(matches))
+            
+            # Get theme versions
+            theme_details = []
+            for theme in themes:
+                try:
+                    style_url = urljoin(self.target, f"wp-content/themes/{theme}/style.css")
+                    style_response = self.session.get(style_url, headers=self.headers, timeout=self.timeout, verify=False)
+                    if style_response.status_code == 200:
+                        version_match = re.search(r'Version:\s*(\S+)', style_response.text)
+                        if version_match:
+                            theme_details.append({"name": theme, "version": version_match.group(1)})
+                        else:
+                            theme_details.append({"name": theme, "version": "Unknown"})
+                except requests.RequestException:
+                    theme_details.append({"name": theme, "version": "Unknown"})
+            return {"themes": theme_details}
+        except requests.RequestException as e:
+            print_verbose(f"Error getting themes: {e}")
+        return {}
+
+    def get_plugins(self):
+        """
+        Get the list of plugins.
+        Returns a list of plugins.
+        """
+        return self.wp_info["plugins"]
+
+    def _get_plugins(self):
+        """Get the list of plugins."""
+        try:
+            response = self.session.get(self.target, headers=self.headers, timeout=self.timeout, verify=False)
+            matches = re.findall(r'wp-content/plugins/([^/]+)/', response.text)
+            plugins = list(set(matches))
+            
+            plugin_details = {}
+            for plugin in plugins:
+                plugin_details[plugin] = {"name": plugin, "version": "Unknown"}
+                try:
+                    readme_url = urljoin(self.target, f"wp-content/plugins/{plugin}/readme.txt")
+                    readme_response = self.session.get(readme_url, headers=self.headers, timeout=self.timeout, verify=False)
+                    if readme_response.status_code == 200:
+                        version_match = re.search(r'Stable tag:\s*(\S+)', readme_response.text)
+                        if version_match:
+                            plugin_details[plugin]["version"] = version_match.group(1)
+                except requests.RequestException:
+                    continue
+            return {"plugins": plugin_details}
+        except requests.RequestException as e:
+            print_verbose(f"Error getting plugins: {e}")
+        return {}
+
+    def enumerate_users(self):
+        """
+        Enumerate users.
+        Returns a list of users.
+        """
+        return self.wp_info["users"]
+
+    def _enumerate_users(self):
+        """Enumerate users."""
+        users = []
+        # 1. Via WP-JSON API
+        try:
+            response = self.session.get(urljoin(self.api_url, 'wp/v2/users'), headers=self.headers, timeout=self.timeout, verify=False)
+            if response.status_code == 200:
+                for user in response.json():
+                    users.append({"id": user.get("id"), "name": user.get("name"), "slug": user.get("slug")})
+        except (requests.RequestException, json.JSONDecodeError):
+            pass
+
+        # 2. Via author archives
+        if not users:
+            for i in range(1, 11):
+                try:
+                    response = self.session.get(urljoin(self.target, f'?author={i}'), headers=self.headers, timeout=self.timeout, verify=False, allow_redirects=False)
+                    if response.status_code == 301 or response.status_code == 302:
+                        location = response.headers.get('Location')
+                        if location:
+                            match = re.search(r'/author/([^/]+)', location)
+                            if match:
+                                users.append({"id": i, "slug": match.group(1)})
+                except requests.RequestException:
+                    continue
+        
+        if users:
+            return {"users": users}
+        return {}

@@ -17,14 +17,14 @@ def banner():
 ╚███╔███╔╝██║           ███████║╚██████╗██║  ██║██║ ╚████║██║ ╚████║███████╗██║  ██║
  ╚══╝╚══╝ ╚═╝           ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝{Style.RESET_ALL}
                         {Fore.CYAN}WordPress Vulnerability Scanner & Exploitation Tool{Style.RESET_ALL}
-                                        {Fore.YELLOW}Version 1.0{Style.RESET_ALL}
+                                        {Fore.YELLOW}Version 2.0{Style.RESET_ALL}
 """
     print(banner_text)
 
 def create_directory(directory):
     """Create directory if it doesn't exist"""
     if not os.path.exists(directory):
-        os.makedirs(directory)
+        os.makedirs(directory, exist_ok=True)
         return True
     return False
 
@@ -54,12 +54,12 @@ class Logger:
     def __init__(self, log_file):
         self.log_file = log_file
         
-        # Create log directory if it doesn't exist
+
         log_dir = os.path.dirname(log_file)
         if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+            os.makedirs(log_dir, exist_ok=True)
             
-        # Create or clear log file
+
         with open(self.log_file, 'w') as f:
             f.write(f"=== WP-Scanner Log - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n\n")
     
@@ -69,32 +69,7 @@ class Logger:
         with open(self.log_file, 'a') as f:
             f.write(f"[{timestamp}] {message}\n")
 
-class ProgressBar:
-    """Simple progress bar for command line"""
-    def __init__(self, total, prefix='Progress:', suffix='Complete', length=50, fill='█'):
-        self.total = total
-        self.prefix = prefix
-        self.suffix = suffix
-        self.length = length
-        self.fill = fill
-        self.iteration = 0
-        
-    def update(self):
-        """Update progress bar"""
-        self.iteration += 1
-        percent = ("{0:.1f}").format(100 * (self.iteration / float(self.total)))
-        filled_length = int(self.length * self.iteration // self.total)
-        bar = self.fill * filled_length + '-' * (self.length - filled_length)
-        sys.stdout.write(f'\r{self.prefix} |{bar}| {percent}% {self.suffix}')
-        sys.stdout.flush()
-        
-        if self.iteration == self.total:
-            sys.stdout.write('\n')
-            
-    def finish(self):
-        """Force finish the progress bar"""
-        self.iteration = self.total
-        self.update()
+
         
 def get_random_user_agent():
     """Return a random user agent string"""

@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 # Script to generate target lists for WP-Scanner mass scanning
+# Improved: Better WordPress detection with scoring, SSL verification disable
 
 import argparse
 import os
 import sys
 import re
+import warnings
 from urllib.parse import urlparse
+
+# Disable SSL warnings
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+warnings.filterwarnings('ignore')
 
 def validate_url(url):
     """Validate and normalize a URL"""
@@ -111,34 +118,48 @@ def main():
         import requests
         from concurrent.futures import ThreadPoolExecutor
         
-        wp_indicators = [
-            '/wp-login.php',
-            '/wp-admin/',
-            '/wp-content/',
-            'wp-includes/'
-        ]
-        
         def check_wordpress(url):
+            """Check if a URL is hosting WordPress"""
             try:
-                # Try to access the site
-                response = requests.get(url, timeout=10, allow_redirects=True)
+                # Try to access the site with timeout
+                response = requests.get(url, timeout=10, allow_redirects=True, verify=False)
                 
-                # Check response content
+                # Check 1: WordPress generator meta tag (most reliable)
+                if '<meta name="generator" content="WordPress' in response.text:
+                    return url
+                
+                # Check 2: WordPress in HTML source or common paths
                 if 'wp-' in response.text or 'WordPress' in response.text:
                     return url
                 
-                # Check common WordPress paths
+                # Check 3: Check common WordPress paths with confidence scoring
+                wp_confidence = 0
+                wp_indicators = [
+                    '/wp-login.php',
+                    '/wp-admin/',
+                    '/wp-content/',
+                    '/wp-includes/',
+                    '/xmlrpc.php',
+                    '/wp-json/'
+                ]
+                
                 for indicator in wp_indicators:
                     try:
                         check_url = url + indicator
-                        resp = requests.get(check_url, timeout=5, allow_redirects=True)
-                        if resp.status_code < 400:  # Any non-error response
-                            return url
+                        resp = requests.head(check_url, timeout=5, allow_redirects=False, verify=False)
+                        # 200, 301, 302, 403 indicate the path exists
+                        if resp.status_code in [200, 301, 302, 303, 307, 308, 403]:
+                            wp_confidence += 1
                     except:
-                        continue
-                        
+                        pass
+                
+                # Require at least 2 indicators to reduce false positives
+                if wp_confidence >= 2:
+                    return url
+                    
                 return None
-            except:
+            except Exception as e:
+                print(f"[ERROR] Error checking {url}: {str(e)}")
                 return None
         
         print(f"Checking {len(all_urls)} targets for WordPress... (this may take a while)")
