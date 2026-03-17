@@ -51,7 +51,7 @@ class Reporter:
             f.write("            <div class='info-item'><strong>Version:</strong> " + wp_info.get("version", "Unknown") + "</div>\n")
             f.write("            <div class='info-item'><strong>Version Sources:</strong> " + ", ".join(wp_info.get("version_sources", [])) + "</div>\n")
             f.write("            <div class='info-item'><strong>Themes:</strong> " + ", ".join([f"{t.get('name', 'Unknown')} (v{t.get('version', 'Unknown')})" for t in wp_info.get("themes", [])]) + "</div>\n")
-            f.write("            <div class='info-item'><strong>Plugins:</strong> " + ", ".join([f"{p.get('name', 'Unknown')} (v{p.get('version', 'Unknown')})" for p in wp_info.get("plugins", {{}}).values()]) + "</div>\n")
+            f.write("            <div class='info-item'><strong>Plugins:</strong> " + ", ".join([f"{p.get('name', 'Unknown')} (v{p.get('version', 'Unknown')})" for p in wp_info.get("plugins", {}).values()]) + "</div>\n")
             f.write("            <div class='info-item'><strong>Users:</strong> " + str(len(wp_info.get("users", []))) + " found</div>\n")
             f.write("            <div class='info-item'><strong>XML-RPC Enabled:</strong> " + ("Yes" if wp_info.get("xmlrpc_enabled") else "No") + "</div>\n")
             f.write("            <div class='info-item'><strong>REST API Enabled:</strong> " + ("Yes" if wp_info.get("rest_api_enabled") else "No") + "</div>\n")

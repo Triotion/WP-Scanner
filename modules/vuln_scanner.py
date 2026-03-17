@@ -80,11 +80,12 @@ class VulnerabilityScanner:
             return []
         
         vulns = []
-        if 'wordpress' in self.wp_vulns_db:
-            for vuln_version, vuln_list in self.wp_vulns_db['wordpress'].items():
+        if self.wp_vulns_db:
+            for vuln_version, vuln_list in self.wp_vulns_db.items():
                 if version.parse(wp_version) <= version.parse(vuln_version):
                     for vuln in vuln_list:
-                        if self._is_version_affected(wp_version, vuln.get("affected_versions")):
+                        affected_v = vuln.get("affected_versions") or vuln.get("affected_version")
+                        if self._is_version_affected(wp_version, affected_v):
                             vulns.append(vuln)
         vulns.extend(self._check_wp_common_vulns())
         return vulns
@@ -106,9 +107,9 @@ class VulnerabilityScanner:
                 for future in concurrent.futures.as_completed(future_to_plugin):
                     plugin_name = future_to_plugin[future]
                     try:
-                        plugin_vulns = future.result()
-                        if plugin_vulns:
-                            vulns[plugin_name] = plugin_vulns
+                        plugin_data = future.result()
+                        if plugin_data and plugin_data.get("vulns"):
+                            vulns[plugin_name] = plugin_data
                     except Exception as exc:
                         print_error(f'Plugin {plugin_name} generated an exception: {exc}')
                     pbar.update(1)
@@ -120,9 +121,10 @@ class VulnerabilityScanner:
         plugin_version = plugin_info.get("version", "Unknown")
         if plugin_name in self.plugin_vulns_db:
             for vuln in self.plugin_vulns_db[plugin_name]:
-                if self._is_version_affected(plugin_version, vuln.get("affected_versions")):
+                affected_v = vuln.get("affected_versions") or vuln.get("affected_version")
+                if self._is_version_affected(plugin_version, affected_v):
                     vulns.append(vuln)
-        return vulns
+        return {"vulns": vulns, "version": plugin_version}
 
     def check_theme_vulns(self, themes):
         """Check theme vulnerabilities."""
@@ -136,9 +138,9 @@ class VulnerabilityScanner:
                 for future in concurrent.futures.as_completed(future_to_theme):
                     theme_name = future_to_theme[future]
                     try:
-                        theme_vulns = future.result()
-                        if theme_vulns:
-                            vulns[theme_name] = theme_vulns
+                        theme_data = future.result()
+                        if theme_data and theme_data.get("vulns"):
+                            vulns[theme_name] = theme_data
                     except Exception as exc:
                         print_error(f'Theme {theme_name} generated an exception: {exc}')
                     pbar.update(1)
@@ -150,9 +152,10 @@ class VulnerabilityScanner:
         theme_version = theme_info.get("version", "Unknown")
         if theme_name in self.theme_vulns_db:
             for vuln in self.theme_vulns_db[theme_name]:
-                if self._is_version_affected(theme_version, vuln.get("affected_versions")):
+                affected_v = vuln.get("affected_versions") or vuln.get("affected_version")
+                if self._is_version_affected(theme_version, affected_v):
                     vulns.append(vuln)
-        return vulns
+        return {"vulns": vulns, "version": theme_version}
 
     def _is_version_affected(self, detected_version, affected_versions):
         """Check if a detected version is within the affected version ranges."""
@@ -161,6 +164,8 @@ class VulnerabilityScanner:
         
         try:
             parsed_version = version.parse(detected_version)
+            if isinstance(affected_versions, str):
+                affected_versions = [affected_versions]
             for ver_range in affected_versions:
                 if '-' in ver_range:
                     start_ver, end_ver = ver_range.split('-')
