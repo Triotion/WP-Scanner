@@ -1,60 +1,77 @@
 #!/usr/bin/env python3
+"""Vulnerability scanner: matches detected components against the local DB."""
+
+from __future__ import annotations
 
 import concurrent.futures
 import json
 import os
-import re
-import sys
-from urllib.parse import urljoin
+from typing import Any
+
 from packaging import version
 from tqdm import tqdm
 
-import requests
-from bs4 import BeautifulSoup
+from modules.utils import print_error, print_info, print_warning
 
-from modules.utils import print_info, print_success, print_error, print_warning, print_verbose
 
 class VulnerabilityScanner:
-    def __init__(self, session, target, headers, timeout, threads, output_dir):
+    """Loads the vulnerability database and scans for matching CVEs."""
+
+    def __init__(
+        self,
+        session: Any,
+        target: str,
+        headers: dict[str, str],
+        timeout: int,
+        threads: int,
+        output_dir: str,
+    ) -> None:
         self.session = session
         self.target = target
         self.headers = headers
         self.timeout = timeout
         self.threads = threads
         self.output_dir = output_dir
-        self.wp_vulns_db, self.plugin_vulns_db, self.theme_vulns_db = self._load_vulns_db()
+        self.wp_vulns_db: dict[str, list[dict[str, Any]]] = {}
+        self.plugin_vulns_db: dict[str, list[dict[str, Any]]] = {}
+        self.theme_vulns_db: dict[str, list[dict[str, Any]]] = {}
+        self._load_vulns_db()
 
-    def _load_vulns_db(self):
-        """Load vulnerability database from file."""
-        db_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'vulnerability_db.json')
+    def _load_vulns_db(self) -> None:
+        db_file = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "data",
+            "vulnerability_db.json",
+        )
         if not os.path.exists(db_file):
             os.makedirs(os.path.dirname(db_file), exist_ok=True)
-            with open(db_file, 'w') as f:
+            with open(db_file, "w", encoding="utf-8") as f:
                 json.dump({"wordpress": {}, "plugins": {}, "themes": {}}, f)
-            return {}, {}, {}
-        try:
-            with open(db_file, 'r') as f:
-                db = json.load(f)
-                return db.get("wordpress", {}), db.get("plugins", {}), db.get("themes", {})
-        except (json.JSONDecodeError, FileNotFoundError) as e:
-            print_error(f"Error loading vulnerability database: {e}")
-            return {}, {}, {}
+            return
 
-    def scan(self, wp_info):
-        """
-        Scan WordPress for vulnerabilities concurrently.
-        """
-        results = {"core": [], "plugins": {}, "themes": {}}
+        try:
+            with open(db_file, "r", encoding="utf-8") as f:
+                db = json.load(f)
+            self.wp_vulns_db = db.get("wordpress", {})
+            self.plugin_vulns_db = db.get("plugins", {})
+            self.theme_vulns_db = db.get("themes", {})
+        except (json.JSONDecodeError, FileNotFoundError) as exc:
+            print_error(f"Error loading vulnerability database: {exc}")
+
+    def scan(self, wp_info: dict[str, Any]) -> dict[str, Any]:
+        """Scan for vulnerabilities concurrently across core, plugins, and themes."""
+        results: dict[str, Any] = {"core": [], "plugins": {}, "themes": {}}
+
         with tqdm(total=3, desc="Scanning for vulnerabilities") as pbar:
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.threads) as executor:
-                future_to_scan = {
+                futures = {
                     executor.submit(self.check_wp_vulns, wp_info.get("version")): "core",
                     executor.submit(self.check_plugin_vulns, wp_info.get("plugins")): "plugins",
-                    executor.submit(self.check_theme_vulns, wp_info.get("themes")): "themes"
+                    executor.submit(self.check_theme_vulns, wp_info.get("themes")): "themes",
                 }
 
-                for future in concurrent.futures.as_completed(future_to_scan):
-                    scan_type = future_to_scan[future]
+                for future in concurrent.futures.as_completed(futures):
+                    scan_type = futures[future]
                     try:
                         data = future.result()
                         if data:
@@ -69,41 +86,40 @@ class VulnerabilityScanner:
                                     if vulns:
                                         results["themes"][theme] = vulns
                     except Exception as exc:
-                        print_error(f'{scan_type} scan generated an exception: {exc}')
+                        print_error(f"{scan_type} scan generated an exception: {exc}")
                     pbar.update(1)
+
         return results
 
-    def check_wp_vulns(self, wp_version):
-        """Check WordPress core vulnerabilities."""
-        if not wp_version or wp_version == 'Unknown':
+    def check_wp_vulns(self, wp_version: str | None) -> list[dict[str, Any]]:
+        if not wp_version or wp_version == "Unknown":
             print_warning("WordPress version could not be determined, skipping core vulnerability check.")
             return []
-        
-        vulns = []
+
+        vulns: list[dict[str, Any]] = []
         if self.wp_vulns_db:
             for vuln_version, vuln_list in self.wp_vulns_db.items():
-                if version.parse(wp_version) <= version.parse(vuln_version):
-                    for vuln in vuln_list:
-                        affected_v = vuln.get("affected_versions") or vuln.get("affected_version")
-                        if self._is_version_affected(wp_version, affected_v):
-                            vulns.append(vuln)
-        vulns.extend(self._check_wp_common_vulns())
+                try:
+                    if version.parse(wp_version) <= version.parse(vuln_version):
+                        for vuln in vuln_list:
+                            affected_v = vuln.get("affected_versions") or vuln.get("affected_version")
+                            if self._is_version_affected(wp_version, affected_v):
+                                vulns.append(vuln)
+                except (version.InvalidVersion, TypeError):
+                    continue
         return vulns
 
-    def _check_wp_common_vulns(self):
-        """Check for common WordPress vulnerabilities with active testing."""
-        # This method can be expanded with more active checks.
-        return []
-
-    def check_plugin_vulns(self, plugins):
-        """Check plugin vulnerabilities."""
+    def check_plugin_vulns(self, plugins: dict[str, Any] | None) -> dict[str, Any]:
         if not plugins:
             return {}
-        
-        vulns = {}
+
+        vulns: dict[str, Any] = {}
         with tqdm(total=len(plugins), desc="Scanning plugins", leave=False) as pbar:
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.threads) as executor:
-                future_to_plugin = {executor.submit(self._check_plugin_vuln, plugin_name, plugin_info): plugin_name for plugin_name, plugin_info in plugins.items()}
+                future_to_plugin = {
+                    executor.submit(self._check_plugin_vuln, name, info): name
+                    for name, info in plugins.items()
+                }
                 for future in concurrent.futures.as_completed(future_to_plugin):
                     plugin_name = future_to_plugin[future]
                     try:
@@ -111,13 +127,12 @@ class VulnerabilityScanner:
                         if plugin_data and plugin_data.get("vulns"):
                             vulns[plugin_name] = plugin_data
                     except Exception as exc:
-                        print_error(f'Plugin {plugin_name} generated an exception: {exc}')
+                        print_error(f"Plugin {plugin_name} generated an exception: {exc}")
                     pbar.update(1)
         return vulns
 
-    def _check_plugin_vuln(self, plugin_name, plugin_info):
-        """Check a single plugin for vulnerabilities."""
-        vulns = []
+    def _check_plugin_vuln(self, plugin_name: str, plugin_info: dict[str, Any]) -> dict[str, Any]:
+        vulns: list[dict[str, Any]] = []
         plugin_version = plugin_info.get("version", "Unknown")
         if plugin_name in self.plugin_vulns_db:
             for vuln in self.plugin_vulns_db[plugin_name]:
@@ -126,15 +141,17 @@ class VulnerabilityScanner:
                     vulns.append(vuln)
         return {"vulns": vulns, "version": plugin_version}
 
-    def check_theme_vulns(self, themes):
-        """Check theme vulnerabilities."""
+    def check_theme_vulns(self, themes: list[dict[str, Any]] | None) -> dict[str, Any]:
         if not themes:
             return {}
 
-        vulns = {}
+        vulns: dict[str, Any] = {}
         with tqdm(total=len(themes), desc="Scanning themes", leave=False) as pbar:
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.threads) as executor:
-                future_to_theme = {executor.submit(self._check_theme_vuln, theme.get("name"), theme): theme.get("name") for theme in themes}
+                future_to_theme = {
+                    executor.submit(self._check_theme_vuln, t.get("name"), t): t.get("name")
+                    for t in themes
+                }
                 for future in concurrent.futures.as_completed(future_to_theme):
                     theme_name = future_to_theme[future]
                     try:
@@ -142,13 +159,12 @@ class VulnerabilityScanner:
                         if theme_data and theme_data.get("vulns"):
                             vulns[theme_name] = theme_data
                     except Exception as exc:
-                        print_error(f'Theme {theme_name} generated an exception: {exc}')
+                        print_error(f"Theme {theme_name} generated an exception: {exc}")
                     pbar.update(1)
         return vulns
 
-    def _check_theme_vuln(self, theme_name, theme_info):
-        """Check a single theme for vulnerabilities."""
-        vulns = []
+    def _check_theme_vuln(self, theme_name: str, theme_info: dict[str, Any]) -> dict[str, Any]:
+        vulns: list[dict[str, Any]] = []
         theme_version = theme_info.get("version", "Unknown")
         if theme_name in self.theme_vulns_db:
             for vuln in self.theme_vulns_db[theme_name]:
@@ -157,35 +173,45 @@ class VulnerabilityScanner:
                     vulns.append(vuln)
         return {"vulns": vulns, "version": theme_version}
 
-    def _is_version_affected(self, detected_version, affected_versions):
-        """Check if a detected version is within the affected version ranges."""
+    def _is_version_affected(
+        self, detected_version: str, affected_versions: str | list[str] | None
+    ) -> bool:
         if detected_version == "Unknown" or not affected_versions:
             return False
-        
+
         try:
-            parsed_version = version.parse(detected_version)
+            parsed = version.parse(detected_version)
             if isinstance(affected_versions, str):
                 affected_versions = [affected_versions]
+
             for ver_range in affected_versions:
-                if '-' in ver_range:
-                    start_ver, end_ver = ver_range.split('-')
-                    if version.parse(start_ver) <= parsed_version <= version.parse(end_ver):
+                ver_range = ver_range.strip()
+                if "-" in ver_range and not ver_range.startswith("-"):
+                    parts = ver_range.split("-", 1)
+                    if version.parse(parts[0]) <= parsed <= version.parse(parts[1]):
                         return True
-                elif ver_range.startswith('<='):
-                    if parsed_version <= version.parse(ver_range[2:]):
+                elif ver_range.startswith("<="):
+                    if parsed <= version.parse(ver_range[2:]):
                         return True
-                elif ver_range.startswith('<'):
-                    if parsed_version < version.parse(ver_range[1:]):
+                elif ver_range.startswith("<"):
+                    if parsed < version.parse(ver_range[1:]):
                         return True
-                elif ver_range.startswith('>='):
-                    if parsed_version >= version.parse(ver_range[2:]):
+                elif ver_range.startswith(">="):
+                    if parsed >= version.parse(ver_range[2:]):
                         return True
-                elif ver_range.startswith('>'):
-                    if parsed_version > version.parse(ver_range[1:]):
+                elif ver_range.startswith(">"):
+                    if parsed > version.parse(ver_range[1:]):
+                        return True
+                elif ver_range.startswith("=="):
+                    if parsed == version.parse(ver_range[2:]):
+                        return True
+                elif ver_range.startswith("!="):
+                    if parsed != version.parse(ver_range[2:]):
                         return True
                 else:
-                    if parsed_version == version.parse(ver_range):
+                    if parsed == version.parse(ver_range):
                         return True
         except (version.InvalidVersion, TypeError):
             return False
+
         return False

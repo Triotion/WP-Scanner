@@ -1,9 +1,9 @@
 {
-    "version": "2.0.1",
+    "version": "3.0.0",
     "name": "WP-Scanner",
     "description": "Advanced WordPress Vulnerability Scanner and Exploitation Tool",
-    "last_updated": "2026-03-17",
-    "release_notes": "Major update with improved detection, stability fixes, and mass scanning capabilities",
+    "last_updated": "2026-07-28",
+    "release_notes": "Major rewrite: 31 exploit handlers, 70 CVEs, type hints, bug fixes, thread safety, XSS protection, wp2shell RCE chain, latest 2024-2026 vulnerabilities",
     "repository": "https://github.com/Triotion/wp-scanner",
     "latest_version_url": "https://raw.githubusercontent.com/Triotion/wp-scanner/master/version.json",
     "vulnerability_db_url": "https://raw.githubusercontent.com/Triotion/wp-scanner/master/data/vulnerability_db.json"
