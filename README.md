@@ -1,5 +1,7 @@
 # WP-Scanner v3.0.0
 
+![WP-Scanner Banner](screenshots/banner.png)
+
 **Advanced WordPress Vulnerability Scanner and Exploitation Framework**
 
 ---
