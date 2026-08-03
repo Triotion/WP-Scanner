@@ -8,9 +8,9 @@
 
 ## Features
 
-- **70 CVEs** across WordPress core, 28 plugins, and 15 themes
+- **75 CVEs** across WordPress core, 33 plugins, and 15 themes
 - Comprehensive fingerprinting (version, themes, plugins, users, 24 detection methods)
-- Active exploitation with 31 exploit handlers (RCE, SQLi, file upload, SSRF, path traversal)
+- Active exploitation with 36 exploit handlers (RCE, SQLi, file upload, LFI, deserialization)
 - Latest 2024-2026 CVEs including **wp2shell RCE chain** (CVE-2026-63030 + CVE-2026-60137)
 - Mass scanning with thread-safe parallel execution
 - HTML and Markdown report generation with XSS protection
@@ -134,19 +134,19 @@ results_example.com_20260728_143022/
 
 ## Vulnerability Database
 
-**70 CVEs** covering the latest WordPress attack surface:
+**75 CVEs** covering the latest WordPress attack surface:
 
 | Category | Count | Notable CVEs |
 |----------|-------|--------------|
 | WordPress Core | 20 | CVE-2026-63030 (wp2shell RCE), CVE-2026-60137 (WP_Query SQLi), CVE-2024-2802 (HTML API DoS) |
-| Plugins | 35 | CVE-2024-11613 (File Upload RCE), CVE-2025-25833 (LayerSlider RCE), CVE-2024-27956 (wp-automatic SQLi) |
+| Plugins | 40 | CVE-2026-3891 (Pix WooCommerce RCE), CVE-2026-58480 (Blocksy RCE), CVE-2026-1357 (WPvivid RCE), CVE-2025-25833 (LayerSlider RCE) |
 | Themes | 15 | Multiple stored XSS and open redirect vulnerabilities |
 
-### Plugin Coverage (28 plugins)
+### Plugin Coverage (33 plugins)
 
-Elementor, WooCommerce, Wordfence, Contact Form 7, WP File Manager, LayerSlider, Yoast SEO, Classic Editor, Akismet, Jetpack, wpAutomatic, Fancy Product Designer, WP Activity Log, Custom CSS-JS-PHP, Chatbot with ChatGPT, The Events Calendar, and more.
+Elementor, WooCommerce, Wordfence, Contact Form 7, WP File Manager, LayerSlider, Yoast SEO, Classic Editor, Akismet, Jetpack, wpAutomatic, Fancy Product Designer, WP Activity Log, Custom CSS-JS-PHP, Chatbot with ChatGPT, The Events Calendar, Pix for WooCommerce, Blocksy Companion Pro, WPvivid Backup & Migration, WP User Manager, Remote API, and more.
 
-### Exploit Methods (31 handlers)
+### Exploit Methods (36 handlers)
 
 | Method | Target | CVE |
 |--------|--------|-----|
@@ -158,6 +158,11 @@ Elementor, WooCommerce, Wordfence, Contact Form 7, WP File Manager, LayerSlider,
 | `fpd_file_upload` | Fancy Product Designer | CVE-2024-51919 |
 | `wp_automatic_sqli_rce` | wpAutomatic | CVE-2024-27956 |
 | `custom_css_js_php_rce` | Custom CSS-JS-PHP | CVE-2026-6433 |
+| `pix_woocommerce_rce` | Pix for WooCommerce | CVE-2026-3891 |
+| `blocksy_file_upload_rce` | Blocksy Companion Pro | CVE-2026-58480 |
+| `wpvivid_backup_rce` | WPvivid Backup & Migration | CVE-2026-1357 |
+| `wp_user_manager_lfi` | WP User Manager | CVE-2026-9290 |
+| `remote_api_deserialization_rce` | Remote API | CVE-2026-14602 |
 | `woocommerce_file_download` | WooCommerce | CVE-2024-28023 |
 | `woocommerce_sqli` | WooCommerce | CVE-2024-28024 |
 | `wp_core_path_traversal` | WP Core | CVE-2024-28025 |
@@ -181,11 +186,11 @@ wp-scanner/
 │   ├── utils.py               # Banner, logging, colored output
 │   ├── fingerprinter.py       # WP detection (24 checks, cached homepage)
 │   ├── vuln_scanner.py        # DB loader, version matching
-│   ├── exploiter.py           # 31 exploit handlers
+│   ├── exploiter.py           # 36 exploit handlers
 │   ├── reporter.py            # HTML/Markdown report generation
 │   └── updater.py             # Self-update with SHA-256 verification
 ├── data/
-│   └── vulnerability_db.json  # Master vulnerability database (70 CVEs)
+│   └── vulnerability_db.json  # Master vulnerability database (75 CVEs)
 ├── requirements.txt           # 6 dependencies
 ├── pyproject.toml             # Build config, ruff, mypy, pytest
 ├── version.json               # v3.0.0
