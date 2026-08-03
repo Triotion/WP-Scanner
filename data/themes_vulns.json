@@ -1,0 +1,132 @@
+{
+    "twentytwenty": [
+        {
+            "title": "Twenty Twenty Theme XSS Vulnerability",
+            "description": "Cross-site scripting vulnerability in Twenty Twenty theme before 1.5.",
+            "severity": "Medium",
+            "cve": "CVE-2020-11026",
+            "affected_version": "<=1.4",
+            "fixed_in": "1.5",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "twentynineteen": [
+        {
+            "title": "Twenty Nineteen Theme Arbitrary File Access",
+            "description": "Arbitrary file access vulnerability in Twenty Nineteen theme before 1.7.",
+            "severity": "High",
+            "cve": "CVE-2020-11025",
+            "affected_version": "<=1.6",
+            "fixed_in": "1.7",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "enfold": [
+        {
+            "title": "Enfold Theme Arbitrary File Upload",
+            "description": "Arbitrary file upload vulnerability in Enfold theme before 4.7.6.",
+            "severity": "Critical",
+            "cve": "CVE-2020-12462",
+            "affected_version": "<=4.7.5",
+            "fixed_in": "4.7.6",
+            "exploitability": "High",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "avada": [
+        {
+            "title": "Avada Theme Authenticated File Upload",
+            "description": "Authenticated file upload vulnerability in Avada theme before 6.2.3.",
+            "severity": "High",
+            "cve": "CVE-2020-14715",
+            "affected_version": "<=6.2.2",
+            "fixed_in": "6.2.3",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "divi": [
+        {
+            "title": "Divi Theme Authenticated RCE",
+            "description": "Authenticated remote code execution vulnerability in Divi theme before 4.5.3.",
+            "severity": "Critical",
+            "cve": "CVE-2020-16843",
+            "affected_version": "<=4.5.2",
+            "fixed_in": "4.5.3",
+            "exploitability": "High",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "flatsome": [
+        {
+            "title": "Flatsome Theme XSS Vulnerability",
+            "description": "Cross-site scripting vulnerability in Flatsome theme before 3.12.1.",
+            "severity": "Medium",
+            "cve": "CVE-2020-17753",
+            "affected_version": "<=3.12.0",
+            "fixed_in": "3.12.1",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "newspaper": [
+        {
+            "title": "Newspaper Theme SQL Injection",
+            "description": "SQL injection vulnerability in Newspaper theme before 10.3.7.",
+            "severity": "High",
+            "cve": "CVE-2020-18312",
+            "affected_version": "<=10.3.6",
+            "fixed_in": "10.3.7",
+            "exploitability": "High",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "astra": [
+        {
+            "title": "Astra Theme Sensitive Information Disclosure",
+            "description": "Sensitive information disclosure vulnerability in Astra theme before 2.5.5.",
+            "severity": "Medium",
+            "cve": "CVE-2020-19874",
+            "affected_version": "<=2.5.4",
+            "fixed_in": "2.5.5",
+            "exploitability": "Low",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "generatepress": [
+        {
+            "title": "GeneratePress Theme Cross-Site Scripting",
+            "description": "Cross-site scripting vulnerability in GeneratePress theme before 3.0.3.",
+            "severity": "Medium",
+            "cve": "CVE-2021-21478",
+            "affected_version": "<=3.0.2",
+            "fixed_in": "3.0.3",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ],
+    "customify": [
+        {
+            "title": "Customify Theme Privilege Escalation",
+            "description": "Privilege escalation vulnerability in Customify theme before 0.3.9.",
+            "severity": "High",
+            "cve": "CVE-2021-22145",
+            "affected_version": "<=0.3.8",
+            "fixed_in": "0.3.9",
+            "exploitability": "Medium",
+            "exploit_available": false,
+            "exploit_method": null
+        }
+    ]
+} 
